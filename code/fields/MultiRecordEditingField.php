@@ -29,7 +29,6 @@ class MultiRecordEditingField extends FormField
      * @var FieldList
      */
     protected $children;
-
     protected $tabs;
 
     public function __construct($name, $title = null, $recordList = null)
@@ -40,7 +39,7 @@ class MultiRecordEditingField extends FormField
 
         $this->tabs = FieldList::create();
 
-        $this->records  = ArrayList::create();
+        $this->records = ArrayList::create();
         if ($recordList) {
             foreach ($recordList as $record) {
                 $this->addRecord($record);
@@ -78,12 +77,14 @@ class MultiRecordEditingField extends FormField
      * @param int $value
      * @return \MultiRecordEditingField
      */
-    public function setHtmlEditorHeight($value) {
+    public function setHtmlEditorHeight($value)
+    {
         $this->htmlEditorHeight = $value;
         return $this;
     }
 
-    public function setUseToggles($value) {
+    public function setUseToggles($value)
+    {
         $this->useToggles = $value;
         return $this;
     }
@@ -161,7 +162,7 @@ class MultiRecordEditingField extends FormField
         if ($parentFields) {
             $this->children->push(HeaderField::create('RecordHeader'.$record->ID, $record->Title.$status));
         }
-        
+
         foreach ($fields as $field) {
             $original = $field->getName();
 
@@ -264,12 +265,17 @@ class MultiRecordEditingField extends FormField
         parent::saveInto($record);
     }
 
+    public function getChildren()
+    {
+        return $this->children;
+    }
+
     public function FieldHolder($properties = array())
     {
         if ($this->useToggles) {
             return $this->tabs;
         }
-        
+
         return $this->children;
     }
 }
