@@ -3,5 +3,8 @@
 	"description": "A module for editing multiple records in a single interface.",
 	"keywords": ["silverstripe", "record editing"],
 	"license": "BSD-3-Clause",
+	"extra": {
+		"installer-name": "multirecordeditor"
+	},
 	"minimum-stability": "dev"
 }
