@@ -19,6 +19,13 @@ class MultiRecordEditingField extends FormField
     protected $htmlEditorHeight = 6;
 
     /**
+     * Should we use toggle Composites in layout ? 
+     *
+     * @var boolean
+     */
+    protected $useToggles = true;
+
+    /**
      * @var FieldList
      */
     protected $children;
@@ -73,6 +80,11 @@ class MultiRecordEditingField extends FormField
      */
     public function setHtmlEditorHeight($value) {
         $this->htmlEditorHeight = $value;
+        return $this;
+    }
+
+    public function setUseToggles($value) {
+        $this->useToggles = $value;
         return $this;
     }
 
@@ -137,7 +149,7 @@ class MultiRecordEditingField extends FormField
             $status = ' ('.$status.')';
         }
 
-        $tab = ToggleCompositeField::create('RecordHeader'.$record->ID, $record->Title.$status, null);
+        $tab = ToggleCompositeField::create('CompositeHeader'.$record->ID, $record->Title.$status, null);
         if ($parentFields) {
             $parentFields->push($tab);
         } else {
@@ -145,7 +157,11 @@ class MultiRecordEditingField extends FormField
             $this->tabs->push($tab);
         }
 
-        $this->children->push(HeaderField::create('RecordHeader'.$record->ID, $record->Title.$status));
+        // if we're not using toggles, we only add the header _if_ we're an inner item, ie $parentFields != null
+        if ($parentFields) {
+            $this->children->push(HeaderField::create('RecordHeader'.$record->ID, $record->Title.$status));
+        }
+        
         foreach ($fields as $field) {
             $original = $field->getName();
 
@@ -250,7 +266,10 @@ class MultiRecordEditingField extends FormField
 
     public function FieldHolder($properties = array())
     {
-        return $this->tabs;
+        if ($this->useToggles) {
+            return $this->tabs;
+        }
+        
         return $this->children;
     }
 }
