@@ -119,13 +119,18 @@ class MultiRecordEditingField extends FormField
             $this->addMultiEditor($editor, $record, true);
             return;
         } elseif (method_exists($record, 'multiEditFields')) {
-            $fields = $record->multiEditFields()->dataFields();
+            $fields = $record->multiEditFields();
         } else {
-            $fields = $record->getCMSFields()->dataFields();
+            $fields = $record->getCMSFields();
         }
         /* @var $fields FieldList */
 
         $record->extend('updateMultiEditFields', $fields);
+        // we just want the data fields, not wrappers
+        $fields = $fields->dataFields();
+        if (!count($fields)) {
+            return;
+        }
 
         $status = $record->CMSPublishedState;
         if ($status) {
