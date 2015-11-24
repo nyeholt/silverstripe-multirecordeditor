@@ -4,6 +4,9 @@
 	"keywords": ["silverstripe", "record editing"],
 	"license": "BSD-3-Clause",
 	"extra": {
+		"branch-alias": {
+			"dev-master": "1.0.x-dev"
+		},
 		"installer-name": "multirecordeditor"
 	},
 	"minimum-stability": "dev"
