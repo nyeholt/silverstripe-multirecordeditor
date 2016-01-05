@@ -51,6 +51,10 @@ class MultiRecordEditingField extends FormField
     {
         return true; // parent::isComposite();
     }
+	
+	public function replaceField($fieldName, $newField) {
+		// noop for a mr editing field... for now
+	}
 
     public function collateDataFields(&$list, $saveableOnly = false)
     {
