@@ -15,7 +15,7 @@ class MultiRecordEditingField extends FormField
     /**
      * The original list object passed into the object.
      * 
-     * @var
+     * @var SS_List
      */
     protected $originalList;
 
@@ -59,8 +59,24 @@ class MultiRecordEditingField extends FormField
      */
     protected $children, $tabs;
 
+    /**
+     * @var array List of additional CSS classes for the form tag.
+     */
+    protected $extraClasses = array();
+
+    /**
+     * @config
+     * @var array
+     */
     private static $allowed_actions = array(
         'addinlinerecord'
+    );
+
+    /**
+     * @var array
+     */
+    private static $url_handlers = array(
+        'addinlinerecord/$ClassName/$SubFieldName/$SubAction' => 'addinlinerecord',
     );
 
     public function __construct($name, $title = null, $recordList = null)
@@ -88,7 +104,7 @@ class MultiRecordEditingField extends FormField
         $this->tabs = FieldList::create();
         $this->list = ArrayList::create();
 
-        $class = $request->requestVar('ClassName');
+        $class = $request->param('ClassName');
         if (!$class)
         {
             return $this->httpError(400, 'No ClassName was supplied.');
@@ -101,8 +117,19 @@ class MultiRecordEditingField extends FormField
         }
 
         $record = $class::create();
-        $this->addRecord($record);
+        if (!$record->canCreate())
+        {
+            return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
+        }
 
+        $subClass = $request->param('SubFieldName');
+        if ($subClass)
+        {
+
+            //exit("subclass");
+        }
+
+        $this->addRecord($record);
         return $this->renderWith(array('MultiRecordEditingField_addinline'));
     }
 
@@ -237,7 +264,7 @@ class MultiRecordEditingField extends FormField
      *
      * @throws LogicException
      */
-    public function getModelClassesOrException() {
+    public function getModelClassesOrThrowExceptionIfEmpty() {
         $modelClasses = $this->getModelClasses();
         if (!$modelClasses) 
         {
@@ -362,6 +389,7 @@ class MultiRecordEditingField extends FormField
         $this->list->push($record);
 
         if (method_exists($record, 'multiEditor')) {
+            Deprecation::notice('2.0', 'multiEditor on DataObject is deprecated.');
             $editor = $record->multiEditor();
             // add its records to 'me'
             $this->addMultiEditor($editor, $record, true);
@@ -381,6 +409,7 @@ class MultiRecordEditingField extends FormField
         $recordID = static::get_field_id($record);
 
         $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $record->Title.$status, null);
+        $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
         if ($parentFields) {
             $parentFields->push($tab);
         } else {
@@ -393,6 +422,27 @@ class MultiRecordEditingField extends FormField
             $this->children->push(HeaderField::create('RecordHeader'.$recordID, $record->Title.$status));
         }
 
+        // Setup sort field
+        $sortFieldName = $this->getSortField();
+        if (!$sortFieldName)
+        {
+            // todo(Jake): better error message
+            throw new Exception('Missing sort field.');
+        }
+        $sortField = isset($fields[$sortFieldName]) ? $fields[$sortFieldName] : null;
+        if ($sortField && !$sortField instanceof HiddenField)
+        {
+            throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form.');
+        }
+        if (!$sortField)
+        {
+            $sortValue = ($record && $record->exists()) ? $record->$sortField : 'o-multirecordediting-sort';
+            $sortField = HiddenField::create($sortFieldName)->setAttribute('value', $sortValue);
+            $fields[$sortFieldName] = $sortField;
+        }
+        $sortField->addExtraClass('js-multirecordediting-sort-field');
+        //$sortField->setAttribute('data-value', $sortValue);
+
         foreach ($fields as $field) {
             $original = $field->getName();
 
@@ -402,8 +452,11 @@ class MultiRecordEditingField extends FormField
             }
 
             if ($field instanceof MultiRecordEditingField) {
-                $this->addMultiEditor($field, $record, false, $tab);
+                // todo(Jake): figured out nested logic
+                $field->setAttribute('data-action', $this->getName());
+                $field->setAttribute('data-parent', $record->class);
                 continue;
+                //exit(__FUNCTION__);
             }
 
             $exists = (
@@ -419,9 +472,28 @@ class MultiRecordEditingField extends FormField
 
             $field->setValue($val, $record);
 
+            if ($this->form) {
+                $field->setForm($this->form);
+            }
+
+            // NOTE(Jake): Required to support UploadField
+            if (method_exists($field, 'setRecord')) {
+                $field->setRecord($record);
+            }
+
             // tweak HTMLEditorFields so they're not huge
             if ($this->htmlEditorHeight && $field instanceof HtmlEditorField) {
                 $field->setRows($this->htmlEditorHeight);
+            }
+
+            if ($field instanceof UploadField) {
+                // Rewrite UploadField's "Select file" iframe to go through
+                // this field.
+                $urlSelectDialog = $field->getConfig('urlSelectDialog');
+                if (!$urlSelectDialog) {
+                    $urlSelectDialog =  Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'); // NOTE: $field->Link('select') without Form action link.
+                }
+                $field->setConfig('urlSelectDialog', $this->Link($urlSelectDialog));
             }
 
             // re-write the name to the multirecordediting name for later retrieval.
@@ -429,10 +501,7 @@ class MultiRecordEditingField extends FormField
             // record won't be able to find the information they're expecting
             $name = $this->getFieldName($field, $record);
             $field->setName($name);
-
-            if (method_exists($field, 'setRecord')) {
-                $field->setRecord($record);
-            }
+            $field->setAttribute('data-action', $this->getName());
 
             if ($tab) {
                 $tab->push($field);
@@ -640,6 +709,42 @@ class MultiRecordEditingField extends FormField
     /**
      * @return FieldList
      */
+    public function Actions() {
+        // todo(Jake): move to constructor and remove fields if no inline editing
+        $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
+        $modelFirstClass = key($modelClasses);
+
+        $fields = FieldList::create();
+        $fields->unshift(LiteralField::create($this->getName().'_clearfix', '<div class="clear"><!-- --></div>'));
+        $fields->unshift($inlineAddButton = FormAction::create($this->getName().'_addinlinerecord', 'Add')
+                            ->addExtraClass('js-multirecordediting-add-inline')
+                            ->setUseButtonTag(true));
+
+        // Setup default inline field data attributes
+        $inlineAddButton->setAttribute('data-name', $this->getName());
+        $inlineAddButton->setAttribute('data-action', $this->getName());
+        $inlineAddButton->setAttribute('data-class', $modelFirstClass);
+        // Automatically apply all data attributes on this element, to the inline button.
+        foreach ($this->getAttributes() as $name => $value)
+        {
+            if (substr($name, 0, 5) === 'data-')
+            {
+                $inlineAddButton->setAttribute($name, $value);
+            }
+        }
+        if (count($modelClasses) > 1) 
+        {
+            $fields->unshift($classField = DropdownField::create($this->getName().'_ClassName', ' ')
+                                            ->addExtraClass('js-multirecordediting-classname')
+                                            ->setEmptyString('(Select section type to create)'));
+            $classField->setSource($modelClasses);
+        }
+        return $fields;
+    }
+
+    /**
+     * @return FieldList
+     */
     public function getChildren() {
         return $this->children;
     }
@@ -653,7 +758,7 @@ class MultiRecordEditingField extends FormField
             return $this->sortField;
         }
 
-        $modelClasses = $this->getModelClassesOrException();
+        $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
         $class = key($modelClasses);
         $baseClass = ClassInfo::baseDataClass($class);
         $sort = Config::inst()->get($baseClass, 'default_sort');
@@ -736,30 +841,14 @@ class MultiRecordEditingField extends FormField
     {
         if ($this->canAddInline)
         {
-            $modelClasses = $this->getModelClassesOrException();
-            $modelFirstClass = key($modelClasses);
             // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
             //             Requirements::javascript on-the-fly.
+            Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
+            Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
+            Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
             Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
+            Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
             Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
-
-            $fields = $this->Fields();
-            $fields->unshift(LiteralField::create($this->getName().'_clearfix', '<div class="clear"><!-- --></div>'));
-            $fields->unshift(FormAction::create($this->getName().'_addinlinerecord', 'Add')
-                                ->setAttribute('data-name', $this->getName())
-                                ->setAttribute('data-class', $modelFirstClass)
-                                ->addExtraClass('js-multirecordediting-add-inline')
-                                ->setUseButtonTag(true));
-            if (count($modelClasses) > 1) 
-            {
-                $fields->unshift($classField = DropdownField::create($this->getName().'_ClassName', ' ')
-                                                ->addExtraClass('js-multirecordediting-classname')
-                                                ->setEmptyString('(Select section type to create)'));
-                $classField->setSource($modelClasses);
-            }
-
-            // Insert elements via javascript before this element when added inline.
-            $fields->push(LiteralField::create($this->getName().'_insertpoint', '<div data-name="'.$this->getName().'" class="js-multirecordediting-insertpoint_'.$this->getName().'"></div>'));
         }
 
         //Debug::dump("RENDERED"); exit;

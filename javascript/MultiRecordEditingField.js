@@ -6,13 +6,16 @@
 		var _cache = {};
 
 		function hasTemplate(name) {
-			return false; // todo(jake): remove debug
+			//return false; // todo(jake): remove debug
 			return (typeof _cache[name] !== 'undefined'); 
 		}
 
 		function renderTemplate(name, variables) {
 			var result = _cache[name];
-			result = result.replace(new RegExp('o-multirecordediting-id'.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), variables.id);
+			for (var key in variables)
+			{
+				result = result.replace(new RegExp('o-multirecordediting-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), variables[key]);
+			}
 			return result;
 		}
 
@@ -25,9 +28,74 @@
 		}
 
 		//
+		// Sort
+		//
+		var isSorting = false;
+		$('.js-multirecordediting-list-item').entwine({
+			onadd: function() {
+				var self = this;
+
+				// Avoid accordions from ToggleCompositeField opening when
+				// sorting.
+				self.find('.ss-toggle').accordion({
+					beforeActivate: function(e, data) {
+						if (isSorting) { return false; }
+					}
+				});
+
+				function helper(e, row) {
+					return row.clone()
+			          .addClass("is-helper")
+			          .width(row.parent().width());
+				}
+
+				function start(e) {
+					isSorting = true;
+				}
+
+				function update(e) {
+					isSorting = false;
+				}
+
+				function stop(e) {
+					self.parent().children().each(function(index) {
+						var sortValue = index + 1;
+						$(this).find('.js-multirecordediting-sort-field').val(sortValue);
+					});
+				}
+
+				this.parent().sortable({
+					handle: '.js-multirecordediting-sort-handle',
+					helper: helper,
+					opacity: 0.7,
+					start: start,
+					update: update,
+					stop: stop
+				});
+			}
+		});
+
+		$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
+			console.log(options.url);
+		});
+
+		//
 		// I/O
 		//
 		$('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline').entwine({
+			onadd: function(e) {
+				/*var $form = $(this[0].form);
+				var formAction = $form.attr('action');
+				console.log(formAction);
+				$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
+					var formSegment = options.url.substr(0, formAction.length);
+					if (formAction === formSegment)
+					{
+						console.log('rewrite this inline field: '+options.url);
+					}
+					console.log(options.url);
+				});*/
+			},
 			onclick: function(e) {
 				e.preventDefault();
 
@@ -51,15 +119,15 @@
 				var fieldName = $self.data('name');
 				this.addinlinerecord(className, function(data) {
 					var num = $self.data('add-inline-num') || 1;
-					var id = 'new_'+num;
 
 					if (!hasTemplate(className)) {
 						setTemplate(className, data);
 					}
 
-					var $fieldset = $self.parent();
-					$fieldset.find('.js-multirecordediting-insertpoint_'+fieldName).before(renderTemplate(className, { 
-						id: id
+					var $parent = $self.parents('.js-multirecordediting-field');
+					$parent.find('.js-multirecordediting-list').append(renderTemplate(className, { 
+						id: 'new_'+num,
+						sort: num,
 					}));
 
 					$self.data('add-inline-num', num + 1);
@@ -75,14 +143,15 @@
 
 				var $form = $(self.form);
 				var action = $form.attr('action');
-				var fieldName = $self.data('name');
-				var url = action+'/field/'+fieldName+'/addinlinerecord';
-				url += '?ClassName=' + encodeURIComponent(className);
+				var fieldAction = $self.data('action');
+				var url = action+'/field/'+fieldAction+'/addinlinerecord';
+				url += '/'+encodeURIComponent(className);
 
 				if (!hasTemplate(className))
 				{
 					$self.addClass('is-loading');
 					$.ajax({
+						async: true,
 						url: url,
 						success: function(data) {
 							callback.apply(this, arguments);

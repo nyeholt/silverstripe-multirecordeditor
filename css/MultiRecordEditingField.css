@@ -1,0 +1,41 @@
+.multirecordeditingfield-togglecompositefield {
+	display: table;
+	table-layout: fixed;
+	width: 100%;
+}
+
+.multirecordeditingfield-togglecompositefield > * {
+	display: table-cell;
+	vertical-align: middle;
+}
+
+.multirecordeditingfield-togglecompositefield_sort {
+	width: 8%;
+	font-size: 0;
+}
+
+.multirecordeditingfield-togglecompositefield > .togglecomposite {
+	width: 90%;
+}
+
+.multirecordeditingfield-togglecompositefield_sort_handle {
+	position: relative;
+	z-index: 0;
+	width: 25px;
+	height: 30px;
+	display: inline-block;
+	cursor: move;
+}
+
+.multirecordeditingfield-togglecompositefield_sort_handle_icon {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	display: inline-block;
+	width: 5px;
+	height: 11px;
+	margin: -5px 0 0 -2px;
+	font-size: 0;
+	background-image: url('../../framework/thirdparty/jquery-ui-themes/smoothness/images/ui-icons_222222_256x240.png');
+	background-position: -5px -227px;
+}
