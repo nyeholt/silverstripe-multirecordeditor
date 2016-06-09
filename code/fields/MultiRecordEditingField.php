@@ -65,6 +65,13 @@ class MultiRecordEditingField extends FormField
     protected $extraClasses = array();
 
     /**
+     * The MultiRecordEditingField this field belongs to. (If any)
+     *
+     * @var null|MultiRecordEditingField
+     */
+    //protected $multiRecordEditingParent;
+
+    /**
      * @config
      * @var array
      */
@@ -119,8 +126,7 @@ class MultiRecordEditingField extends FormField
         // Get passed arguments
         $dirParts = explode('/', $request->remaining());
         $class = isset($dirParts[0]) ? $dirParts[0] : '';
-
-        //$class =  $request->param('ClassName');
+        //$class =  $request->param('ClassName'); // todo(Jake): remove this if not neeeded
         if (!$class)
         {
             return $this->httpError(400, 'No ClassName was supplied.');
@@ -129,7 +135,7 @@ class MultiRecordEditingField extends FormField
         $modelClassNames = $this->getModelClasses();
         if (!isset($modelClassNames[$class]))
         {
-            return $this->httpError(400, 'Invalid ClassName was supplied.');
+            return $this->httpError(400, 'Invalid ClassName "'.$class.'" was supplied.');
         }
 
         $record = $class::create();
@@ -154,7 +160,8 @@ class MultiRecordEditingField extends FormField
             $subField = $dataFields[$subFieldName];
         }
 
-        // Re-write field names from 'Title' to be expanded out
+        // Re-write field names to be unique
+        // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
         foreach ($dataFields as $field)
         {
             $name = $this->getFieldName($field, $record);
@@ -162,8 +169,9 @@ class MultiRecordEditingField extends FormField
         }
 
         // If set a sub-field, execute its action instead.
-        if ($subField)
+        if ($isSubFieldAction && $subField)
         {
+            // Consume so Silverstripe handles the actions naturally.
             $request->shift(); // ClassName
             $request->shift(); // field
             $request->shift(); // SubFieldName
@@ -178,9 +186,12 @@ class MultiRecordEditingField extends FormField
 
     public function handleRequest(SS_HTTPRequest $request, DataModel $model) {
         if ($request->match('addinlinerecord', true)) {
+            // NOTE(Jake): Handling here as I'm not sure how to do a url_handler that allows
+            //             infinite parameters after 'addinlinerecord'
             $result = $this->handleAddInline($request);
             if ($result && is_object($result) && $result instanceof RequestHandler)
             {
+                // NOTE(Jake): Logic copied from parent::handleRequest()
                 $returnValue = $result->handleRequest($request, $model);
                 if($returnValue && is_array($returnValue)) { 
                     $returnValue = $this->customise($returnValue);
@@ -520,7 +531,6 @@ class MultiRecordEditingField extends FormField
         $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $recordSectionTitle, null);
         $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
         $tab->setStartClosed(false);
-        $tab->MultiRecordEditingField = $this;
         
         /*$parentFields = null;
         if ($parentFields) {
@@ -556,21 +566,48 @@ class MultiRecordEditingField extends FormField
             }
 
             if ($field instanceof MultiRecordEditingField) {
-                // todo(Jake): figured out nested logic
-                $field->MultiRecordEditingField = $this;
-
+                // Example of data
+                // ---------------
+                //  Level 1 Nest:
+                //  -------------
+                //  [0] => ElementArea [1] => MultiRecordEditingField [2] => ElementGallery [3] => new_2 [4] => Images
+                //
+                //  Level 2 Nest:
+                //  -------------
+                //                     [5] => MultiRecordEditingField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
+                // 
+                //
                 $nameData = $this->getFieldName($field, $record);
                 $nameData = explode('__', $nameData);
-                $action = $nameData[0].'/addinlinerecord/'.$nameData[2].'/field/'.$nameData[4];
+                $nameDataCount = count($nameData);
+                $action = $nameData[0];
+                for ($i = 1; $i < $nameDataCount; $i += 4)
+                {
+                    $signature = $nameData[$i];
+                    if ($signature !== 'MultiRecordEditingField')
+                    {
+                        throw new LogicException('Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
+                    }
+                    $class = $nameData[$i + 1];
+                    $subFieldName = $nameData[$i + 3];
+                    $action .= '/addinlinerecord/'.$class.'/field/'.$subFieldName;
+                }
+                $field->setAttribute('data-action', $action);
+                /*if (count($nameData) > 5) {
+                    Debug::dump(count($nameData));
+                    Debug::dump($nameData); exit;
+                } else {
+                   // Debug::dump(count($nameData));
+                   // Debug::dump($nameData); exit;
+                }*/
+                // Debug::dump($action); exit;
 
-               // Debug::dump($action); exit;
-
+                // TODO(JAKE): REMOVE, VERY OUTDATED
                 // getAction
                 //$action = $this->getName().'/addinlinerecord/'.'ElementGallery'.'/'.$field->getName();
-                $field->setAttribute('data-action', $action);
                 //$field->setAttribute('data-parent', $record->class);
-            } 
-            else if ($field instanceof HtmlEditorField) 
+            }
+            if ($field instanceof HtmlEditorField) 
             {
                 if ($this->htmlEditorHeight) {
                     $field->setRows($this->htmlEditorHeight);
@@ -721,20 +758,6 @@ class MultiRecordEditingField extends FormField
                     }
                     $id = $new_id_arr[1];
                     $class_id_field[$class][$id][$fieldName] = $value;
-                    // todo(Jake): 
-                    // Create blank record
-                    /*$record = $class::create();
-                    $fields = $this->getRecordDataFields($record);
-                    if (!count($fields)) {
-                        return;
-                    }
-
-                    foreach ($fields as $field)
-                    {
-
-                        $field->saveInto($record);
-                    }
-                    Debug::dump($record);*/
                 }
             }
 
