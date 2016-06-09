@@ -36,11 +36,11 @@ class MultiRecordEditingField extends FormField
     protected $htmlEditorHeight = 6;
 
     /**
-     * The field to sort by.
+     * The field name to sort by.
      *
      * @var string|array
      */
-    protected $sortField = null;
+    protected $sortFieldName = null;
 
     /**
      * Should we use toggle Composites in layout ? 
@@ -68,16 +68,25 @@ class MultiRecordEditingField extends FormField
      * @config
      * @var array
      */
-    private static $allowed_actions = array(
-        'addinlinerecord'
-    );
+    /*private static $allowed_actions = array(
+        //'handleAddInline',
+        'httpSubmission'
+    );*/
 
     /**
      * @var array
      */
-    private static $url_handlers = array(
-        'addinlinerecord/$ClassName/$SubFieldName/$SubAction' => 'addinlinerecord',
-    );
+
+    /*private static $url_handlers = array(
+        // ie. addinlinerecord/$ClassName/$SubFieldName/$SubAction/$SubSubFieldName/$SubSubAction
+        //'addinlinerecord/$ClassName' => 'handleAddInline',
+        'POST ' => 'httpSubmission',
+        'GET ' => 'httpSubmission',
+        'HEAD ' => 'httpSubmission',
+        //'addinlinerecord/' => 'handleAddInline',
+        //'addinlinerecord/$ClassName' => 'handleAddInline',
+        //'addinlinerecord/$ClassName/$SubFieldName/$SubAction' => 'handleFieldAction',
+    );*/
 
     public function __construct($name, $title = null, $recordList = null)
     {
@@ -88,23 +97,30 @@ class MultiRecordEditingField extends FormField
         $this->tabs = FieldList::create();
         $this->originalList = $recordList;
         $this->list = ArrayList::create();
-        if ($recordList) {
-            foreach ($recordList as $record) {
+
+        /*if ($recordList) 
+        {
+            foreach ($recordList as $record) 
+            {
                 $this->addRecord($record);
             }
-        }
+        }*/
     }
 
     /**
-     * Action
+     * 
      */
-    public function addinlinerecord(SS_HTTPRequest $request) {
+    public function handleAddInline(SS_HTTPRequest $request) {
         // Force reset
         $this->children = FieldList::create();
         $this->tabs = FieldList::create();
         $this->list = ArrayList::create();
 
-        $class = $request->param('ClassName');
+        // Get passed arguments
+        $dirParts = explode('/', $request->remaining());
+        $class = isset($dirParts[0]) ? $dirParts[0] : '';
+
+        //$class =  $request->param('ClassName');
         if (!$class)
         {
             return $this->httpError(400, 'No ClassName was supplied.');
@@ -122,19 +138,106 @@ class MultiRecordEditingField extends FormField
             return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
         }
 
-        $subClass = $request->param('SubFieldName');
-        if ($subClass)
-        {
+        //
+        $fields = $this->getRecordDataFields($record);
+        $dataFields = $fields->dataFields();
 
-            //exit("subclass");
+        // Determine sub field action (if executing one)
+        $isSubFieldAction = (isset($dirParts[1]) && $dirParts[1] === 'field') ? true : false;
+        $subField = null;
+        if ($isSubFieldAction) {
+            $subFieldName = (isset($dirParts[2]) && $dirParts[2]) ? $dirParts[2] : '';
+            if (!isset($dataFields[$subFieldName]))
+            {
+                return $this->httpError(400, 'Invalid Sub-Field was supplied ('.$class.'::'.$subFieldName.').');
+            }
+            $subField = $dataFields[$subFieldName];
         }
 
-        $this->addRecord($record);
+        // Re-write field names from 'Title' to be expanded out
+        foreach ($dataFields as $field)
+        {
+            $name = $this->getFieldName($field, $record);
+            $field->setName($name);
+        }
+
+        // If set a sub-field, execute its action instead.
+        if ($subField)
+        {
+            $request->shift(); // ClassName
+            $request->shift(); // field
+            $request->shift(); // SubFieldName
+            return $subField;
+        }
+
+        // Allow fields to render, 
+        $this->tabs = $fields;
+
         return $this->renderWith(array('MultiRecordEditingField_addinline'));
     }
 
-    public function isComposite()
-    {
+    public function handleRequest(SS_HTTPRequest $request, DataModel $model) {
+        if ($request->match('addinlinerecord', true)) {
+            $result = $this->handleAddInline($request);
+            if ($result && is_object($result) && $result instanceof RequestHandler)
+            {
+                $returnValue = $result->handleRequest($request, $model);
+                if($returnValue && is_array($returnValue)) { 
+                    $returnValue = $this->customise($returnValue);
+                }
+                return $returnValue;
+            }
+            return $result;
+        }
+
+        $result = parent::handleRequest($request, $model);
+        return $result;
+    }
+
+    /*public function handleFieldAction(SS_HTTPRequest $request) {
+        // todo(Jake): refactor out into shared func
+        $class = $request->param('ClassName');
+        if (!$class)
+        {
+            return $this->httpError(400, 'No ClassName was supplied.');
+        }
+        $modelClassNames = $this->getModelClasses();
+        if (!isset($modelClassNames[$class]))
+        {
+            return $this->httpError(400, 'Invalid ClassName was supplied.');
+        }
+
+        $record = $class::create();
+        if (!$record->canCreate())
+        {
+            return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
+        }
+
+        $SubFieldName = $request->param('SubFieldName');
+        $SubAction = $request->param('SubAction');
+        if (!$SubFieldName)
+        {
+            // todo(Jake): better error message
+            return $this->httpError(400, 'SubField not provide.');
+        }
+
+        $SubFieldName = $this->getFieldName($SubFieldName, $record);
+        $this->addRecord($record);
+
+        $fields = $this->Fields();
+        $fields = $fields->dataFields();
+        if (!isset($fields[$SubFieldName]))
+        {
+            // todo(Jake): better error message
+            return $this->httpError(400, 'SubField no exist.');
+        }
+        $subField = $fields[$SubFieldName];
+        $request->setUrl($SubAction);
+        return $subField;
+    }*/
+
+    // todo(Jake): Remove assuming being NOT composite works.
+    /*public function isComposite() {
         return true; // parent::isComposite();
     }
 	
@@ -142,8 +245,7 @@ class MultiRecordEditingField extends FormField
 		// noop for a mr editing field... for now
 	}
 
-    public function collateDataFields(&$list, $saveableOnly = false)
-    {
+    public function collateDataFields(&$list, $saveableOnly = false) {
         foreach ($this->children as $field) {
             if ($field->isComposite()) {
                 $field->collateDataFields($list, $saveableOnly);
@@ -156,10 +258,9 @@ class MultiRecordEditingField extends FormField
         }
     }
 
-    public function removeByName($fieldName, $dataFieldOnly = false)
-    {
+    public function removeByName($fieldName, $dataFieldOnly = false) {
         return $this->children->removeByName($fieldName, $dataFieldOnly);
-    }
+    }*/
 
     /**
      * Set a height for html editor fields
@@ -313,11 +414,11 @@ class MultiRecordEditingField extends FormField
     /**
      * @return ArrayList
      */
-    public function getRecords()
+    /*public function getRecords()
     {
         Deprecation::notice('2.0', __FUNCTION__.' is deprecated. Use getList instead. Change made to keep this field more consistent with GridField API.');
         return $this->list;
-    }
+    }*/
 
     /**
      * @return SS_List
@@ -352,7 +453,7 @@ class MultiRecordEditingField extends FormField
     /**
      * @return null
      */
-    public function editList($list)
+    /*public function editList($list)
     {
         if ($list) {
             foreach ($list as $record) {
@@ -361,20 +462,144 @@ class MultiRecordEditingField extends FormField
                 }
             }
         }
+    }*/
+
+    /**
+     * @return boolean
+     */
+    public function getCanSort() {
+        return (bool)$this->getSortFieldName();
     }
 
     /**
      * @return FieldList|null
      */
     public function getRecordDataFields(DataObjectInterface $record) {
-        if (method_exists($record, 'multiEditFields')) {
-            $fields = $record->multiEditFields();
+        if (method_exists($record, 'getMultiEditFields')) {
+            // todo(Jake): Allow 'getMultiEditFields' by extension using 'hasMethod'
+            $fields = $record->getMultiEditFields();
         } else {
             $fields = $record->getCMSFields();
         }
         $record->extend('updateMultiEditFields', $fields);
         $fields = $fields->dataFields();
-        return $fields;
+        if (!$fields) {
+            throw new Exception('todo(Jake): handle this');
+            return $fields;
+        }
+
+        // Setup sort field
+        $sortFieldName = $this->getSortFieldName();
+        if ($sortFieldName)
+        {
+            // todo(Jake): allow no sort field to work + better error message
+            //throw new Exception('Unable to determine sort field name.');
+            $sortField = isset($fields[$sortFieldName]) ? $fields[$sortFieldName] : null;
+            if ($sortField && !$sortField instanceof HiddenField)
+            {
+                throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form.');
+            }
+            if (!$sortField)
+            {
+                $sortValue = ($record && $record->exists()) ? $record->$sortField : 'o-multirecordediting-sort';
+                $sortField = HiddenField::create($sortFieldName)->setAttribute('value', $sortValue);
+                $fields[$sortFieldName] = $sortField;
+            }
+            $sortField->addExtraClass('js-multirecordediting-sort-field');
+        }
+
+        // Set heading (ie. 'My Record (Draft)')
+        $recordSectionTitle = $record->Title;
+        $status = ($record->ID) ? $record->CMSPublishedState : 'New';
+        if ($status) {
+            $recordSectionTitle .= ' ('.$status.')';
+        }
+
+        // Add heading field / Togglable composite field with heading
+        $recordID = static::get_field_id($record);
+        $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $recordSectionTitle, null);
+        $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
+        $tab->setStartClosed(false);
+        $tab->MultiRecordEditingField = $this;
+        
+        /*$parentFields = null;
+        if ($parentFields) {
+            $parentFields->push($tab);
+        } else {
+            $tab->setStartClosed(false);
+            $this->tabs->push($tab);
+        }
+        if ($parentFields) {
+            // if we're not using toggles, we only add the header _if_ we're an inner item, ie $parentFields != null
+            $this->children->push(HeaderField::create('RecordHeader'.$recordID, $recordSectionTitle));
+        }*/
+
+        $recordExists = $record->exists();
+
+        $currentFieldListModifying = $tab;
+        foreach ($fields as $k => $field)
+        {
+            $fieldName = $field->getName();
+
+            // Set value from record
+            if ($recordExists)
+            {
+                $val = null;
+                if (isset($record->$fieldName) 
+                    || $record->hasMethod($fieldName)
+                    || ($record->hasMethod('hasField') && $record->hasField($fieldName)))
+                {
+                    $val = $record->__get($fieldName);
+                }
+                // NOTE(Jake): Some fields like 'CheckboxSetField' require the DataObject/record as the 2nd parameter
+                $field->setValue($val, $record);
+            }
+
+            if ($field instanceof MultiRecordEditingField) {
+                // todo(Jake): figured out nested logic
+                $field->MultiRecordEditingField = $this;
+
+                $nameData = $this->getFieldName($field, $record);
+                $nameData = explode('__', $nameData);
+                $action = $nameData[0].'/addinlinerecord/'.$nameData[2].'/field/'.$nameData[4];
+
+               // Debug::dump($action); exit;
+
+                // getAction
+                //$action = $this->getName().'/addinlinerecord/'.'ElementGallery'.'/'.$field->getName();
+                $field->setAttribute('data-action', $action);
+                //$field->setAttribute('data-parent', $record->class);
+            } 
+            else if ($field instanceof HtmlEditorField) 
+            {
+                if ($this->htmlEditorHeight) {
+                    $field->setRows($this->htmlEditorHeight);
+                }
+            } 
+            else if ($field instanceof UploadField) 
+            {
+                // Rewrite UploadField's "Select file" iframe to go through
+                // this field.
+                $urlSelectDialog = $field->getConfig('urlSelectDialog');
+                if (!$urlSelectDialog) {
+                    $urlSelectDialog = Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'); // NOTE: $field->Link('select') without Form action link.
+                }
+                $field->setConfig('urlSelectDialog', $this->Link($urlSelectDialog));
+                //$field->setAutoUpload(false);
+            }
+
+            // NOTE(Jake): Required to support UploadField
+            if (method_exists($field, 'setRecord')) {
+                $field->setRecord($record);
+            }
+
+            $currentFieldListModifying->push($field);
+        }
+
+        $resultFieldList = new FieldList();
+        $resultFieldList->push($tab);
+        $resultFieldList->setForm($this->form);
+        return $resultFieldList;
     }
 
     public function addRecord(DataObjectInterface $record, $parentFields = null)
@@ -388,112 +613,12 @@ class MultiRecordEditingField extends FormField
         }
         $this->list->push($record);
 
-        if (method_exists($record, 'multiEditor')) {
-            Deprecation::notice('2.0', 'multiEditor on DataObject is deprecated.');
-            $editor = $record->multiEditor();
-            // add its records to 'me'
-            $this->addMultiEditor($editor, $record, true);
-            return;
-        }
-
         $fields = $this->getRecordDataFields($record);
-        if (!count($fields)) {
-            return;
-        }
-
-        $status = ($record->ID) ? $record->CMSPublishedState : 'New';
-        if ($status) {
-            $status = ' ('.$status.')';
-        }
-
-        $recordID = static::get_field_id($record);
-
-        $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $record->Title.$status, null);
-        $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
-        if ($parentFields) {
-            $parentFields->push($tab);
-        } else {
-            $tab->setStartClosed(false);
-            $this->tabs->push($tab);
-        }
-
-        // if we're not using toggles, we only add the header _if_ we're an inner item, ie $parentFields != null
-        if ($parentFields) {
-            $this->children->push(HeaderField::create('RecordHeader'.$recordID, $record->Title.$status));
-        }
-
-        // Setup sort field
-        $sortFieldName = $this->getSortField();
-        if (!$sortFieldName)
-        {
-            // todo(Jake): better error message
-            throw new Exception('Missing sort field.');
-        }
-        $sortField = isset($fields[$sortFieldName]) ? $fields[$sortFieldName] : null;
-        if ($sortField && !$sortField instanceof HiddenField)
-        {
-            throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form.');
-        }
-        if (!$sortField)
-        {
-            $sortValue = ($record && $record->exists()) ? $record->$sortField : 'o-multirecordediting-sort';
-            $sortField = HiddenField::create($sortFieldName)->setAttribute('value', $sortValue);
-            $fields[$sortFieldName] = $sortField;
-        }
-        $sortField->addExtraClass('js-multirecordediting-sort-field');
-        //$sortField->setAttribute('data-value', $sortValue);
 
         foreach ($fields as $field) {
-            $original = $field->getName();
-
             // if it looks like a multieditor field, let's skip for now.
-            if (strpos($original, '__') > 0) {
+            if (strpos($field->getName(), '__') > 0) {
                 continue;
-            }
-
-            if ($field instanceof MultiRecordEditingField) {
-                // todo(Jake): figured out nested logic
-                $field->setAttribute('data-action', $this->getName());
-                $field->setAttribute('data-parent', $record->class);
-                continue;
-                //exit(__FUNCTION__);
-            }
-
-            $exists = (
-                isset($record->$original) ||
-                $record->hasMethod($original) ||
-                ($record->hasMethod('hasField') && $record->hasField($original))
-                );
-
-            $val = null;
-            if ($exists) {
-                $val = $record->__get($original);
-            }
-
-            $field->setValue($val, $record);
-
-            if ($this->form) {
-                $field->setForm($this->form);
-            }
-
-            // NOTE(Jake): Required to support UploadField
-            if (method_exists($field, 'setRecord')) {
-                $field->setRecord($record);
-            }
-
-            // tweak HTMLEditorFields so they're not huge
-            if ($this->htmlEditorHeight && $field instanceof HtmlEditorField) {
-                $field->setRows($this->htmlEditorHeight);
-            }
-
-            if ($field instanceof UploadField) {
-                // Rewrite UploadField's "Select file" iframe to go through
-                // this field.
-                $urlSelectDialog = $field->getConfig('urlSelectDialog');
-                if (!$urlSelectDialog) {
-                    $urlSelectDialog =  Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'); // NOTE: $field->Link('select') without Form action link.
-                }
-                $field->setConfig('urlSelectDialog', $this->Link($urlSelectDialog));
             }
 
             // re-write the name to the multirecordediting name for later retrieval.
@@ -501,7 +626,6 @@ class MultiRecordEditingField extends FormField
             // record won't be able to find the information they're expecting
             $name = $this->getFieldName($field, $record);
             $field->setName($name);
-            $field->setAttribute('data-action', $this->getName());
 
             if ($tab) {
                 $tab->push($field);
@@ -511,24 +635,18 @@ class MultiRecordEditingField extends FormField
         }
     }
 
-    protected function addMultiEditor($editor, $fromRecord, $addHeader = false, $tab = null)
-    {
-        if ($addHeader) {
-            $this->children->push(HeaderField::create('RecordHeader'.static::get_field_id($fromRecord), $fromRecord->Title));
-        }
-
-        foreach ($editor->getList() as $r) {
-            $this->addRecord($r, $tab);
-        }
-    }
-
+    /**
+     * @param string|FormField $field
+     * @param DataObject $record
+     * @return string
+     */
     protected function getFieldName($field, $record)
     {
         $name = $field instanceof FormField ? $field->getName() : $field;
         $recordID = static::get_field_id($record);
 
         return sprintf(
-            '%s__%s__%s__%s', $this->getName(), $record->ClassName, $recordID, $name
+            '%s__%s__%s__%s__%s', $this->getName(), 'MultiRecordEditingField', $record->ClassName, $recordID, $name
         );
     }
 
@@ -752,10 +870,10 @@ class MultiRecordEditingField extends FormField
     /**
      *
      */
-    public function getSortField() {
-        if ($this->sortField) {
-            // todo(Jake): add setSortField
-            return $this->sortField;
+    public function getSortFieldName() {
+        if ($this->sortFieldName) {
+            // todo(Jake): add setSortFieldName
+            return $this->sortFieldName;
         }
 
         $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
@@ -837,8 +955,7 @@ class MultiRecordEditingField extends FormField
         return array($column, $direction);
     }
 
-    public function FieldHolder($properties = array())
-    {
+    public function FieldHolder($properties = array()) {
         if ($this->canAddInline)
         {
             // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own

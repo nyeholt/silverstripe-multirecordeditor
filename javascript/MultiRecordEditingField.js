@@ -6,7 +6,7 @@
 		var _cache = {};
 
 		function hasTemplate(name) {
-			//return false; // todo(jake): remove debug
+			return false; // todo(jake): remove debug
 			return (typeof _cache[name] !== 'undefined'); 
 		}
 
@@ -77,6 +77,21 @@
 
 		$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
 			console.log(options.url);
+			// eg. /submit/CreateForm/field/ElementArea__ElementGallery__new_1__Images/addinlinerecord/ElementGallery_Item
+			/*if (options.url.indexOf('__MultiRecordEditingField__') > -1)
+			{
+				var url = options.url;
+				var dirParts = url.split('/');
+				for (var i = 0; i < dirParts.length; ++i)
+				{
+					var dirPart = dirParts[i];
+					if (dirPart.indexOf('__MultiRecordEditingField__') > -1)
+					{
+						var invalidAction = 
+					}
+				}
+				console.log(options.url);
+			}*/
 		});
 
 		//
@@ -125,7 +140,7 @@
 					}
 
 					var $parent = $self.parents('.js-multirecordediting-field');
-					$parent.find('.js-multirecordediting-list').append(renderTemplate(className, { 
+					$parent.find('.js-multirecordediting-list').first().append(renderTemplate(className, { 
 						id: 'new_'+num,
 						sort: num,
 					}));
@@ -152,6 +167,7 @@
 					$self.addClass('is-loading');
 					$.ajax({
 						async: true,
+						cache: false,
 						url: url,
 						success: function(data) {
 							callback.apply(this, arguments);
