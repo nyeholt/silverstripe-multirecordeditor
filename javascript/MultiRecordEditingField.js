@@ -77,21 +77,7 @@
 
 		$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
 			console.log(options.url);
-			// eg. /submit/CreateForm/field/ElementArea__ElementGallery__new_1__Images/addinlinerecord/ElementGallery_Item
-			/*if (options.url.indexOf('__MultiRecordEditingField__') > -1)
-			{
-				var url = options.url;
-				var dirParts = url.split('/');
-				for (var i = 0; i < dirParts.length; ++i)
-				{
-					var dirPart = dirParts[i];
-					if (dirPart.indexOf('__MultiRecordEditingField__') > -1)
-					{
-						var invalidAction = 
-					}
-				}
-				console.log(options.url);
-			}*/
+			
 		});
 
 		//

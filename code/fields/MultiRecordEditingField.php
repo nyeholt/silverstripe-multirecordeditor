@@ -531,6 +531,7 @@ class MultiRecordEditingField extends FormField
         $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $recordSectionTitle, null);
         $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
         $tab->setStartClosed(false);
+        $tab->CanSort = $this->CanSort;
         
         /*$parentFields = null;
         if ($parentFields) {
@@ -586,7 +587,7 @@ class MultiRecordEditingField extends FormField
                     $signature = $nameData[$i];
                     if ($signature !== 'MultiRecordEditingField')
                     {
-                        throw new LogicException('Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
+                        throw new LogicException('Error caused by developer. Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
                     }
                     $class = $nameData[$i + 1];
                     $subFieldName = $nameData[$i + 3];
@@ -639,11 +640,8 @@ class MultiRecordEditingField extends FormField
         return $resultFieldList;
     }
 
-    public function addRecord(DataObjectInterface $record, $parentFields = null)
+    /*public function addRecord(DataObjectInterface $record, $parentFields = null)
     {
-        /**
-         * @var $fields FieldList 
-         */
         $fields = null;
         if (!$record->canEdit()) {
             return;
@@ -670,7 +668,7 @@ class MultiRecordEditingField extends FormField
 
             $this->children->push($field);
         }
-    }
+    }*/
 
     /**
      * @param string|FormField $field
@@ -689,10 +687,9 @@ class MultiRecordEditingField extends FormField
 
     public function saveInto(\DataObjectInterface $record)
     {
-        $v = $this->Value();
-
+        //$v = $this->Value();
         // Save existing has_one/has_many/many_many records
-        $allItems = array();
+        /*$allItems = array();
         foreach ($this->children as $field) {
             $fieldname = $field->getName();
             if (strpos($fieldname, '__') > 0) {
@@ -715,39 +712,51 @@ class MultiRecordEditingField extends FormField
         }
         foreach ($allItems as $item) {
             $item->write();
-        }
+        }*/
 
         // Create and save new has_many/many_many records
         if (Controller::has_curr())
         {
             $class_id_field = array();
             $relationFieldName = $this->getName();
-            $sortFieldName = $this->getSortField();
+            $sortFieldName = $this->getSortFieldName();
 
             /**
              * @var SS_HTTPRequest
              */
             $request = Controller::curr()->getRequest();
+
+            //Debug::dump($request); 
+
             foreach ($request->requestVars() as $name => $value)
             {
                 // If fieldName is the -very- first part of the string
                 // NOTE(Jake): Check is required here as we're pulling straight from $request
                 if (strpos($name, $relationFieldName) === 0)
                 {
+                    static $FIELD_PARAMETERS_SIZE = 5;
+
                     $fieldParameters = explode('__', $name);
-                    if (!isset($fieldParameters[3])) {
-                        // You expect a name like 'ElementArea__ElementContent__3__Title'
-                        // So ensure 4 parameters exist in the name, otherwise continue.
+                    $fieldParametersCount = count($fieldParameters);
+                    if ($fieldParametersCount < $FIELD_PARAMETERS_SIZE) {
+                        // You expect a name like 'ElementArea__MultiRecordEditingField__ElementGallery__new_1__Title'
+                        // So ensure 5 parameters exist in the name, otherwise continue.
                         continue;
                     }
+                    $signature = $fieldParameters[1];
+                    if ($signature !== 'MultiRecordEditingField')
+                    {
+                        return $this->httpError(400, 'Invalid signature in "MultiRecordEditingField". Malformed MultiRecordEditingField sub-field or hack attempt.');
+                    }
 
-                    $class = $fieldParameters[1];
-                    $new_id = $fieldParameters[2];
-                    $fieldName = $fieldParameters[3];
+                    $parentFieldName = $fieldParameters[0];
+                    $class = $fieldParameters[2];
+                    $new_id = $fieldParameters[3];
+                    $fieldName = $fieldParameters[4];
 
                     // From eg. 'new_1', check to ensure 'new' is there and retrieve
                     // the ID.
-                    $new_id_arr = explode('_', $new_id);
+                    /*($new_id_arr = explode('_', $new_id);
                     if (!isset($new_id_arr[0]) && $new_id_arr[0] !== 'new') {
                         // todo(Jake): better error msg.
                         throw new Exception('Missing "new" keyword.');
@@ -756,10 +765,38 @@ class MultiRecordEditingField extends FormField
                         // todo(Jake): better error msg.
                         throw new Exception('Missing id of new record.');
                     }
-                    $id = $new_id_arr[1];
-                    $class_id_field[$class][$id][$fieldName] = $value;
+                    $id = $new_id_arr[1];*/
+
+                    //
+                    if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
+                    {
+                        // 1st Nest Level
+                        $class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;
+                    }
+                    else
+                    {
+                        // 2nd, 3rd, nth Nest Level
+                        $relationArray = &$class_id_field;
+                        for ($i = 0; $i < $fieldParametersCount - 1; $i += $FIELD_PARAMETERS_SIZE - 1)
+                        {
+                            $parentFieldName = $fieldParameters[$i];
+                            $signature = $fieldParameters[$i+1];
+                            $class = $fieldParameters[$i+2];
+                            $new_id = $fieldParameters[$i+3];
+                            $fieldName = $fieldParameters[$i+4];
+                            if (!isset($relationArray[$parentFieldName][$class][$new_id])) {
+                                $relationArray[$parentFieldName][$class][$new_id] = array();
+                            }
+                            $relationArray = &$relationArray[$parentFieldName][$class][$new_id];
+                        }
+                        $relationArray[$fieldName] = $value; 
+                        unset($relationArray);
+                    }
                 }
             }
+
+            Debug::dump($class_id_field);
+            exit(__FUNCTION__);
 
             foreach ($class_id_field as $class => $subRecordsData)
             {
