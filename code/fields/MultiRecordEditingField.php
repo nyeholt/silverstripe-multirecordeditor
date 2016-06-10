@@ -6,18 +6,11 @@
 class MultiRecordEditingField extends FormField
 {
     /**
-     * Current list of records to be editable.
-     *
-     * @var ArrayList
-     */
-    protected $list;
-
-    /**
-     * The original list object passed into the object.
+     * The list object passed into the object.
      * 
      * @var SS_List
      */
-    protected $originalList;
+    protected $list;
 
     /**
      * Class name of the DataObject that the GridField will display.
@@ -95,15 +88,14 @@ class MultiRecordEditingField extends FormField
         //'addinlinerecord/$ClassName/$SubFieldName/$SubAction' => 'handleFieldAction',
     );*/
 
-    public function __construct($name, $title = null, $recordList = null)
+    public function __construct($name, $title = null, SS_List $list = null)
     {
         parent::__construct($name, $title);
 
         $this->children = FieldList::create();
 
         $this->tabs = FieldList::create();
-        $this->originalList = $recordList;
-        $this->list = ArrayList::create();
+        $this->list = $list;
 
         /*if ($recordList) 
         {
@@ -121,7 +113,6 @@ class MultiRecordEditingField extends FormField
         // Force reset
         $this->children = FieldList::create();
         $this->tabs = FieldList::create();
-        $this->list = ArrayList::create();
 
         // Get passed arguments
         $dirParts = explode('/', $request->remaining());
@@ -364,9 +355,10 @@ class MultiRecordEditingField extends FormField
         }
 
         // Fallback to the DataList/UnsavedRelationList
-        if ($this->originalList && $this->originalList instanceof UnsavedRelationList) {
+        // todo(Jake): remove if unused
+        /*if ($this->originalList && $this->originalList instanceof UnsavedRelationList) {
             return static::convert_to_associative(array($this->originalList->dataClass()));
-        }
+        }*/
 
         return array();
     }
@@ -685,48 +677,107 @@ class MultiRecordEditingField extends FormField
         );
     }
 
+    private static $_records_to_write = null;
     public function saveInto(\DataObjectInterface $record)
     {
-        //$v = $this->Value();
-        // Save existing has_one/has_many/many_many records
-        /*$allItems = array();
-        foreach ($this->children as $field) {
-            $fieldname = $field->getName();
-            if (strpos($fieldname, '__') > 0) {
-                $bits = array_reverse(explode('__', $fieldname));
-                if (count($bits) > 3) {
-                    list($dataFieldName, $id, $classname) = $bits;
-                    if (!isset($allItems["$classname-$id"])) {
-                        $item                       = $this->list->filter(array('ClassName' => $classname, 'ID' => $id))->first();
-                        $allItems["$classname-$id"] = $item;
-                    }
-                    $item = $allItems["$classname-$id"];
-                    if ($item) {
-                        if ($field) {
-                            $field->setName($dataFieldName);
-                            $field->saveInto($item);
-                        }
-                    }
-                }
-            }
-        }
-        foreach ($allItems as $item) {
-            $item->write();
-        }*/
-
-        // Create and save new has_many/many_many records
-        if (Controller::has_curr())
+        $class_id_field = $this->Value();
+        if ($class_id_field && is_array($class_id_field))
         {
-            $class_id_field = array();
-            $relationFieldName = $this->getName();
+            $list = $this->list;
+            $dataClass = $list->dataClass();
             $sortFieldName = $this->getSortFieldName();
 
-            /**
-             * @var SS_HTTPRequest
-             */
-            $request = Controller::curr()->getRequest();
+            foreach ($class_id_field as $class => $id_field)
+            {
+                // Create and add records to list
+                foreach ($id_field as $idString => $subRecordData)
+                {
+                    $idParts = explode('_', $idString);
+                    $id = 0;
+                    $subRecord = null;
+                    if ($idParts[0] === 'new')
+                    {
+                        if (!isset($idParts[1]))
+                        {
+                            throw new Exception('Missing ID part of "new_" identifier.');
+                        }
+                        $id = (int)$idParts[1];
+                        if (!$id && $id > 0)
+                        {
+                            throw new Exception('Invalid ID part of "new_" identifier. Positive Non-Zero Integers only are accepted.');
+                        }
 
-            //Debug::dump($request); 
+                        // New record
+                        $subRecord = $class::create();
+
+                        // todo(Jake): if performance is sluggish, make any new records share
+                        //             the same fields as they should all output the same.
+                        //             (ie. record->ID == 0 to cache fields)
+                    }
+                    else
+                    {
+                        // Find existing
+                        $id = (int)$id;
+                        throw new Exception('todo(jake): Handle existing records');
+                    }
+
+                    $fields = $this->getRecordDataFields($subRecord);
+                    $fields = $fields->dataFields();
+                    if (!$fields) {
+                        throw new Exception($class.' is returning 0 fields.');
+                    }
+
+                    foreach ($subRecordData as $fieldName => $value)
+                    {
+                        if ($sortFieldName !== $fieldName && 
+                            !isset($fields[$fieldName]))
+                        {
+                            // todo(Jake): better error msg.
+                            throw new Exception('Missing field "'.$fieldName.'"');
+                        }
+                        $field = $fields[$fieldName];
+                        $field->setValue($value);
+                        $field->saveInto($subRecord);
+                    }
+
+                    // Handle sort if its not manually handled on the form
+                    if ($sortFieldName && !isset($fields[$sortFieldName]))
+                    {
+                        $sortValue = $id; // Default to order added
+                        if (isset($subRecordData[$sortFieldName])) {
+                            $sortValue = $subRecordData[$sortFieldName];
+                        }
+                        if ($sortValue)
+                        {
+                            $subRecord->{$sortFieldName} = $sortValue;
+                        }
+                    }
+                    
+                    if (!$subRecord->doValidate())
+                    {
+                        // todo(Jake): better error msg.
+                        throw new ValidationException('Failed validation');
+                    }
+                    self::$_records_to_write[] = $subRecord;
+                    $list->push($subRecord);
+                }
+            }
+            // Debug list
+            //Debug::dump($list->toArray()); 
+            //Debug::Dump($class_id_field);
+            //exit(__FUNCTION__.'_nested');
+            return;
+        }
+
+        // Create and save new has_many/many_many records
+        /**
+         * @var SS_HTTPRequest
+         */
+        $request = $this->form->getRequest();
+        if ($request)
+        {
+            $relation_class_id_field = array();
+            $relationFieldName = $this->getName();
 
             foreach ($request->requestVars() as $name => $value)
             {
@@ -771,12 +822,12 @@ class MultiRecordEditingField extends FormField
                     if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
                     {
                         // 1st Nest Level
-                        $class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;
+                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;
                     }
                     else
                     {
                         // 2nd, 3rd, nth Nest Level
-                        $relationArray = &$class_id_field;
+                        $relationArray = &$relation_class_id_field;
                         for ($i = 0; $i < $fieldParametersCount - 1; $i += $FIELD_PARAMETERS_SIZE - 1)
                         {
                             $parentFieldName = $fieldParameters[$i];
@@ -795,83 +846,106 @@ class MultiRecordEditingField extends FormField
                 }
             }
 
-            Debug::dump($class_id_field);
-            exit(__FUNCTION__);
-
-            foreach ($class_id_field as $class => $subRecordsData)
+            self::$_records_to_write = array();
+            foreach ($relation_class_id_field as $relation => $class_id_field)
             {
-                // Get fields used by DataObject so we can use $field->saveInto
-                // to be as consistent as possible with normal operations.
-                $subRecord = $class::create();
-                $fields = $this->getRecordDataFields($subRecord);
-                unset($subRecord);
-                if (!count($fields)) {
-                    // todo(Jake): better error msg.
-                    throw new Exception('Cannot save new record. Mismatch.');
-                }
+                $this->setValue($class_id_field);
+                $this->saveInto($record);
+                $this->setValue(null);
+            }
 
-                // Setup list to manipulate on $record based on the relation name.
-                $listOrDataObject = $record->$relationFieldName();
-                $list = new ArrayList();
-                if ($listOrDataObject instanceof DataObject) {
-                    // todo(Jake): Rewrite to use 'getMultiRecordEditingFieldList' function
-                    if ($listOrDataObject instanceof WidgetArea) {
-                        // NOTE(Jake): WidgetArea is supported for native Elemental support.
-                        $list = $listOrDataObject->Widgets();
-                    } else {
-                        throw new Exception('Cannot add multiple records to "'.$relationFieldName.'" as its not a WidgetArea or SS_List.');
-                    }
-                } else if ($listOrDataObject instanceof SS_List) {
-                    $list = $listOrDataObject;
-                } else {
-                    throw new Exception('Unable to work with relation field "'.$relationFieldName.'".');
-                }
-
-                // Create and add records to list
-                foreach ($subRecordsData as $i => $subRecordData)
+            // Check permissions on everything at once
+            $canModifyAll = true;
+            foreach (self::$_records_to_write as $subRecord) {
+                if ($subRecord->exists()) 
                 {
-                    $subRecord = $class::create();
-                    foreach ($subRecordData as $fieldName => $value)
+                    if (!$subRecord->canEdit())
                     {
-                        if ($sortFieldName !== $fieldName && 
-                            !isset($fields[$fieldName]))
-                        {
-                            // todo(Jake): better error msg.
-                            throw new Exception('Missing field');
-                        }
+                        $canModifyAll = false;
+                    }
+                } 
+                else if (!$subRecord->canCreate()) 
+                {
+                    $canModifyAll = false;
+                }
+            }
+            if (!$canModifyAll)
+            {
+                // todo(Jake): better error message, check each class?
+                throw new Exception('Current user does not have permission to modify ');
+            }
 
-                        $field = $fields[$fieldName];
-                        $field->setValue($value);
-                        $field->saveInto($subRecord);
+            // Setup list to manipulate on $record based on the relation name.
+            $listOrDataObject = $record->$relationFieldName();
+            $list = new ArrayList();
+            if ($listOrDataObject instanceof DataObject) 
+            {
+                // todo(Jake): Rewrite to use 'getMultiRecordEditingFieldList' function
+                if ($listOrDataObject instanceof WidgetArea) 
+                {
+                    // NOTE(Jake): WidgetArea is supported for native Elemental support.
+                    $list = $listOrDataObject->Widgets();
+                    foreach ($this->list as $r) 
+                    {
+                        $list->push($r);
                     }
+                } 
+                else 
+                {
+                    throw new Exception('Cannot add multiple records to "'.$relationFieldName.'" as its not a WidgetArea or SS_List.');
+                }
+            } 
+            else if ($listOrDataObject instanceof SS_List) 
+            {
+                // no-op
+            } 
+            else 
+            {
+                throw new Exception('Unable to work with relation field "'.$relationFieldName.'".');
+            }
 
-                    // Handle sort if its not manually handled on the form
-                    if (!isset($fields[$sortFieldName]))
-                    {
-                        $sortValue = $i; // Default to order added
-                        if (isset($subRecordData[$sortFieldName])) {
-                            $sortValue = $subRecordData[$sortFieldName];
-                        }
-                        if ($sortValue)
-                        {
-                            $subRecord->{$sortFieldName} = $sortValue;
+            //Debug::dump($list);
+            //Debug::dump($record->$relationFieldName());
+
+            // Write all the records in
+            /*foreach (self::$_records_to_write as $subRecord)
+            {
+
+            }*/
+
+            //Debug::dump(self::$_records_to_write); exit;
+
+            //Debug::dump($this->list);
+                //Debug::dump($record->ElementArea());
+           // Debug::dump($record); exit;
+            //exit(__FUNCTION__);
+        }
+
+         // Save existing has_one/has_many/many_many records
+        /*$allItems = array();
+        foreach ($this->children as $field) {
+            $fieldname = $field->getName();
+            if (strpos($fieldname, '__') > 0) {
+                $bits = array_reverse(explode('__', $fieldname));
+                if (count($bits) > 3) {
+                    list($dataFieldName, $id, $classname) = $bits;
+                    if (!isset($allItems["$classname-$id"])) {
+                        $item                       = $this->list->filter(array('ClassName' => $classname, 'ID' => $id))->first();
+                        $allItems["$classname-$id"] = $item;
+                    }
+                    $item = $allItems["$classname-$id"];
+                    if ($item) {
+                        if ($field) {
+                            $field->setName($dataFieldName);
+                            $field->saveInto($item);
                         }
                     }
-                    
-                    if (!$subRecord->doValidate())
-                    {
-                        // todo(Jake): better error msg.
-                        throw new ValidationException('Failed validation');
-                    }
-                    $list->push($subRecord);
                 }
             }
         }
-
-        Debug::dump($list->toArray());
-        exit(__FUNCTION__);
-
-        parent::saveInto($record);
+        foreach ($allItems as $item) {
+            $item->write();
+        }*/
     }
 
     /**
