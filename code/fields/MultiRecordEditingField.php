@@ -196,74 +196,6 @@ class MultiRecordEditingField extends FormField
         return $result;
     }
 
-    /*public function handleFieldAction(SS_HTTPRequest $request) {
-        // todo(Jake): refactor out into shared func
-        $class = $request->param('ClassName');
-        if (!$class)
-        {
-            return $this->httpError(400, 'No ClassName was supplied.');
-        }
-        $modelClassNames = $this->getModelClasses();
-        if (!isset($modelClassNames[$class]))
-        {
-            return $this->httpError(400, 'Invalid ClassName was supplied.');
-        }
-
-        $record = $class::create();
-        if (!$record->canCreate())
-        {
-            return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
-        }
-
-        $SubFieldName = $request->param('SubFieldName');
-        $SubAction = $request->param('SubAction');
-        if (!$SubFieldName)
-        {
-            // todo(Jake): better error message
-            return $this->httpError(400, 'SubField not provide.');
-        }
-
-        $SubFieldName = $this->getFieldName($SubFieldName, $record);
-        $this->addRecord($record);
-
-        $fields = $this->Fields();
-        $fields = $fields->dataFields();
-        if (!isset($fields[$SubFieldName]))
-        {
-            // todo(Jake): better error message
-            return $this->httpError(400, 'SubField no exist.');
-        }
-        $subField = $fields[$SubFieldName];
-        $request->setUrl($SubAction);
-        return $subField;
-    }*/
-
-    // todo(Jake): Remove assuming being NOT composite works.
-    /*public function isComposite() {
-        return true; // parent::isComposite();
-    }
-	
-	public function replaceField($fieldName, $newField) {
-		// noop for a mr editing field... for now
-	}
-
-    public function collateDataFields(&$list, $saveableOnly = false) {
-        foreach ($this->children as $field) {
-            if ($field->isComposite()) {
-                $field->collateDataFields($list, $saveableOnly);
-            }
-
-            $isIncluded = $field->hasData() && !$saveableOnly;
-            if ($isIncluded) {
-                $list[$field->getName()] = $field;
-            }
-        }
-    }
-
-    public function removeByName($fieldName, $dataFieldOnly = false) {
-        return $this->children->removeByName($fieldName, $dataFieldOnly);
-    }*/
-
     /**
      * Set a height for html editor fields
      *
@@ -308,6 +240,14 @@ class MultiRecordEditingField extends FormField
      */
     public function getCanAddInline() {
         return $this->canAddInline;
+    }
+
+    /**
+     * @return \MultiRecordEditingField
+     */
+    public function setConfig($config) {
+        // Stubbed by design so developers can switch between GridField and this class quickly
+        return $this;
     }
 
     /**
@@ -677,14 +617,30 @@ class MultiRecordEditingField extends FormField
         );
     }
 
-    private static $_records_to_write = null;
+    private static $_new_records_to_write = null;
+    private static $_existing_records_to_write = null;
     public function saveInto(\DataObjectInterface $record)
     {
         $class_id_field = $this->Value();
-        if ($class_id_field && is_array($class_id_field))
+        if (is_array($class_id_field))
         {
+            if (!$class_id_field)
+            {
+                throw new Exception('No data passed into '.__CLASS__.'::'.__FUNCTION__.'.');
+            }
+
             $list = $this->list;
             $dataClass = $list->dataClass();
+            /*if ($list instanceof DataList) 
+            {
+                $newList = array();
+                foreach ($list as $r) 
+                {
+                    $newList[] = $r;
+                }
+                $this->list = $list = new ArrayList($newList);
+            }*/
+
             $sortFieldName = $this->getSortFieldName();
 
             foreach ($class_id_field as $class => $id_field)
@@ -758,8 +714,13 @@ class MultiRecordEditingField extends FormField
                         // todo(Jake): better error msg.
                         throw new ValidationException('Failed validation');
                     }
-                    self::$_records_to_write[] = $subRecord;
+
                     $list->push($subRecord);
+                    if ($subRecord->exists()) {
+                        self::$_existing_records_to_write[] = $subRecord;
+                    } else {
+                        self::$_new_records_to_write[] = $subRecord;
+                    }
                 }
             }
             // Debug list
@@ -846,7 +807,8 @@ class MultiRecordEditingField extends FormField
                 }
             }
 
-            self::$_records_to_write = array();
+            self::$_new_records_to_write = array();
+            self::$_existing_records_to_write = array();
             foreach ($relation_class_id_field as $relation => $class_id_field)
             {
                 $this->setValue($class_id_field);
@@ -854,17 +816,22 @@ class MultiRecordEditingField extends FormField
                 $this->setValue(null);
             }
 
+            //
             // Check permissions on everything at once
+            //
             $canModifyAll = true;
-            foreach (self::$_records_to_write as $subRecord) {
-                if ($subRecord->exists()) 
+            foreach (self::$_new_records_to_write as $subRecord) 
+            {
+                // Check each new record to see if you can create them
+                if (!$subRecord->canCreate()) 
                 {
-                    if (!$subRecord->canEdit())
-                    {
-                        $canModifyAll = false;
-                    }
-                } 
-                else if (!$subRecord->canCreate()) 
+                    $canModifyAll = false;
+                }
+            }
+            foreach (self::$_existing_records_to_write as $subRecord) 
+            {
+                // Check each existing record to see if you can edit them
+                if (!$subRecord->canEdit())
                 {
                     $canModifyAll = false;
                 }
@@ -877,49 +844,34 @@ class MultiRecordEditingField extends FormField
 
             // Setup list to manipulate on $record based on the relation name.
             $listOrDataObject = $record->$relationFieldName();
-            $list = new ArrayList();
             if ($listOrDataObject instanceof DataObject) 
             {
                 // todo(Jake): Rewrite to use 'getMultiRecordEditingFieldList' function
-                if ($listOrDataObject instanceof WidgetArea) 
-                {
+                $list = null;
+                if ($listOrDataObject instanceof WidgetArea) {
                     // NOTE(Jake): WidgetArea is supported for native Elemental support.
                     $list = $listOrDataObject->Widgets();
-                    foreach ($this->list as $r) 
-                    {
-                        $list->push($r);
-                    }
-                } 
-                else 
-                {
+                } else {
                     throw new Exception('Cannot add multiple records to "'.$relationFieldName.'" as its not a WidgetArea or SS_List.');
                 }
+                foreach ($this->list as $r) 
+                {
+                    $list->push($r);
+                }
             } 
-            else if ($listOrDataObject instanceof SS_List) 
-            {
-                // no-op
-            } 
-            else 
+            else if (!$listOrDataObject instanceof SS_List) 
             {
                 throw new Exception('Unable to work with relation field "'.$relationFieldName.'".');
             }
 
-            //Debug::dump($list);
-            //Debug::dump($record->$relationFieldName());
-
-            // Write all the records in
-            /*foreach (self::$_records_to_write as $subRecord)
+            // Save existing items
+            foreach (self::$_existing_records_to_write as $subRecord) 
             {
-
-            }*/
-
-            //Debug::dump(self::$_records_to_write); exit;
-
-            //Debug::dump($this->list);
-                //Debug::dump($record->ElementArea());
-           // Debug::dump($record); exit;
-            //exit(__FUNCTION__);
+                $subRecord->write();
+            }
         }
+
+        exit(__FUNCTION__);
 
          // Save existing has_one/has_many/many_many records
         /*$allItems = array();
@@ -1102,7 +1054,22 @@ class MultiRecordEditingField extends FormField
             Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
         }
 
-        //Debug::dump("RENDERED"); exit;
+        foreach ($this->list as $record) 
+        {
+            $recordFields = $this->getRecordDataFields($record);
+            // Re-write field names to be unique
+            // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
+            // todo(Jake): put these into a function
+            foreach ($recordFields->dataFields() as $field)
+            {
+                $name = $this->getFieldName($field, $record);
+                $field->setName($name);
+            }
+            foreach ($recordFields as $field)
+            {
+                $this->tabs->push($field);
+            }
+        }
         
         // Expose tabs to the template (as it's protected)
         //$properties['Tabs'] = $this->tabs; // todo(jake): remove no longer needed?
