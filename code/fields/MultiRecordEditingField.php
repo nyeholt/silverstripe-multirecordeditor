@@ -189,6 +189,13 @@ class MultiRecordEditingField extends FormField
                 }
                 return $returnValue;
             }
+            // NOTE(Jake): Consume all remaining parts so that 'RequestHandler::handleRequest'
+            //             doesn't hit an error. (Use Case: Getting an error with a GridField::handleRequest)
+            $dirParts = explode('/', $request->remaining());
+            foreach ($dirParts as $dirPart)
+            {
+                $request->shift();
+            }
             return $result;
         }
 
@@ -631,15 +638,19 @@ class MultiRecordEditingField extends FormField
 
             $list = $this->list;
             $dataClass = $list->dataClass();
-            /*if ($list instanceof DataList) 
+            $flatList = array();
+            if ($list instanceof DataList) 
             {
-                $newList = array();
+                $flatList = array();
                 foreach ($list as $r) 
                 {
-                    $newList[] = $r;
+                    $flatList[$r->ID] = $r;
                 }
-                $this->list = $list = new ArrayList($newList);
-            }*/
+            }
+            else if (!$list instanceof UnsavedRelationList)
+            {
+                throw new Exception('List type not support "'.$list->class.'".');
+            }
 
             $sortFieldName = $this->getSortFieldName();
 
@@ -672,9 +683,13 @@ class MultiRecordEditingField extends FormField
                     }
                     else
                     {
+                        $id = $idParts[0];
                         // Find existing
                         $id = (int)$id;
-                        throw new Exception('todo(jake): Handle existing records');
+                        if (!isset($flatList[$id])) {
+                            throw new Exception('Record #'.$id.' does not exist.');
+                        }
+                        $subRecord = $flatList[$id];
                     }
 
                     $fields = $this->getRecordDataFields($subRecord);
@@ -715,10 +730,19 @@ class MultiRecordEditingField extends FormField
                         throw new ValidationException('Failed validation');
                     }
 
-                    $list->push($subRecord);
                     if ($subRecord->exists()) {
                         self::$_existing_records_to_write[] = $subRecord;
                     } else {
+                        // Add to the list
+                        if ($list instanceof UnsavedRelationList 
+                            || $list instanceof HasManyList) 
+                        {
+                            $list->add($subRecord);
+                        } 
+                        else 
+                        {
+                            throw new Exception('Unsupported SS_List type "'.$list->class.'"');
+                        }
                         self::$_new_records_to_write[] = $subRecord;
                     }
                 }
@@ -870,8 +894,6 @@ class MultiRecordEditingField extends FormField
                 $subRecord->write();
             }
         }
-
-        exit(__FUNCTION__);
 
          // Save existing has_one/has_many/many_many records
         /*$allItems = array();
@@ -1067,6 +1089,9 @@ class MultiRecordEditingField extends FormField
             }
             foreach ($recordFields as $field)
             {
+                if ($field instanceof ToggleCompositeField) {
+                    $field->setName($this->getFieldName($field, $record));
+                }
                 $this->tabs->push($field);
             }
         }
