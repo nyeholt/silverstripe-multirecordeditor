@@ -122,9 +122,10 @@ class MultiRecordEditingField extends FormField
         $this->tabs = FieldList::create();
 
         // Get passed arguments
+        // todo(Jake): Change '->remaining' to '->shift(4)' and test.
+        //             remove other ->shift things.
         $dirParts = explode('/', $request->remaining());
         $class = isset($dirParts[0]) ? $dirParts[0] : '';
-        //$class =  $request->param('ClassName'); // todo(Jake): remove this if not neeeded
         if (!$class)
         {
             return $this->httpError(400, 'No ClassName was supplied.');
@@ -136,24 +137,44 @@ class MultiRecordEditingField extends FormField
             return $this->httpError(400, 'Invalid ClassName "'.$class.'" was supplied.');
         }
 
-        $record = $class::create();
-        if (!$record->canCreate())
+        // Determine sub field action (if executing one)
+        $isSubFieldAction = (isset($dirParts[1]));
+        $recordIDOrNew = (isset($dirParts[1]) && $dirParts[1]) ? $dirParts[1] : null;
+
+        if ($recordIDOrNew === null || $recordIDOrNew === 'new')
         {
-            return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
+            $record = $class::create();
+            if (!$record->canCreate())
+            {
+                return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
+            }
+        }
+        else
+        {
+            $recordIDOrNew = (int)$recordIDOrNew;
+            if (!$recordIDOrNew)
+            {
+                return $this->httpError(400, 'Malformed record ID in sub-field action was supplied ('.$class.' #'.$recordIDOrNew.').');
+            }
+            $record = $class::get()->byID($recordIDOrNew);
+            if (!$record->canView())
+            {
+                return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot view "'.$class.'" #'.$recordIDOrNew.' class type.');
+            }
         }
 
-        //
+        // Check if sub-field exists on requested record (can request new record with 'new')
         $fields = $this->getRecordDataFields($record);
         $dataFields = $fields->dataFields();
 
-        // Determine sub field action (if executing one)
-        $isSubFieldAction = (isset($dirParts[1]) && $dirParts[1] === 'field') ? true : false;
+        // 
+        $isValidSubFieldAction = (isset($dirParts[2]) && $dirParts[2] === 'field') ? true : false;
         $subField = null;
         if ($isSubFieldAction) {
-            $subFieldName = (isset($dirParts[2]) && $dirParts[2]) ? $dirParts[2] : '';
-            if (!isset($dataFields[$subFieldName]))
+            $subFieldName = (isset($dirParts[3]) && $dirParts[3]) ? $dirParts[3] : '';
+            if (!$subFieldName || !isset($dataFields[$subFieldName]))
             {
-                return $this->httpError(400, 'Invalid Sub-Field was supplied ('.$class.'::'.$subFieldName.').');
+                return $this->httpError(400, 'Invalid sub-field was supplied ('.$class.'::'.$subFieldName.').');
             }
             $subField = $dataFields[$subFieldName];
         }
@@ -167,13 +188,18 @@ class MultiRecordEditingField extends FormField
         }
 
         // If set a sub-field, execute its action instead.
-        if ($isSubFieldAction && $subField)
+        if ($isSubFieldAction)
         {
-            // Consume so Silverstripe handles the actions naturally.
-            $request->shift(); // ClassName
-            $request->shift(); // field
-            $request->shift(); // SubFieldName
-            return $subField;
+            if ($isValidSubFieldAction && $subField)
+            {
+                // Consume so Silverstripe handles the actions naturally.
+                $request->shift(); // $ClassName
+                $request->shift(); // $ID ('new' or '1')
+                $request->shift(); // field
+                $request->shift(); // $SubFieldName
+                return $subField;
+            }
+            return $this->httpError(400, 'Invalid sub-field action on '.__CLASS__.'::'.__FUNCTION__);
         }
 
         // Allow fields to render, 
@@ -519,47 +545,9 @@ class MultiRecordEditingField extends FormField
             }
 
             if ($field instanceof MultiRecordEditingField) {
-                // Example of data
-                // ---------------
-                //  Level 1 Nest:
-                //  -------------
-                //  [0] => ElementArea [1] => MultiRecordEditingField [2] => ElementGallery [3] => new_2 [4] => Images
-                //
-                //  Level 2 Nest:
-                //  -------------
-                //                     [5] => MultiRecordEditingField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
-                // 
-                //
                 $field->depth = $this->depth + 1;
-                $nameData = $this->getFieldName($field, $record);
-                $nameData = explode('__', $nameData);
-                $nameDataCount = count($nameData);
-                $action = $nameData[0];
-                for ($i = 1; $i < $nameDataCount; $i += 4)
-                {
-                    $signature = $nameData[$i];
-                    if ($signature !== 'MultiRecordEditingField')
-                    {
-                        throw new LogicException('Error caused by developer. Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
-                    }
-                    $class = $nameData[$i + 1];
-                    $subFieldName = $nameData[$i + 3];
-                    $action .= '/addinlinerecord/'.$class.'/field/'.$subFieldName;
-                }
+                $action = $this->getActionName($field, $record);
                 $field->setAttribute('data-action', $action);
-                /*if (count($nameData) > 5) {
-                    Debug::dump(count($nameData));
-                    Debug::dump($nameData); exit;
-                } else {
-                   // Debug::dump(count($nameData));
-                   // Debug::dump($nameData); exit;
-                }*/
-                // Debug::dump($action); exit;
-
-                // TODO(JAKE): REMOVE, VERY OUTDATED
-                // getAction
-                //$action = $this->getName().'/addinlinerecord/'.'ElementGallery'.'/'.$field->getName();
-                //$field->setAttribute('data-parent', $record->class);
             }
             if ($field instanceof HtmlEditorField) 
             {
@@ -571,6 +559,10 @@ class MultiRecordEditingField extends FormField
             {
                 // Rewrite UploadField's "Select file" iframe to go through
                 // this field.
+                $action = $this->getActionName($field, $record);
+                Debug::dump(Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'));
+                Debug::dump($action); exit;
+
                 $urlSelectDialog = $field->getConfig('urlSelectDialog');
                 if (!$urlSelectDialog) {
                     $urlSelectDialog = Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'); // NOTE: $field->Link('select') without Form action link.
@@ -622,6 +614,43 @@ class MultiRecordEditingField extends FormField
             $this->children->push($field);
         }
     }*/
+
+    /**
+     * @param FormField $field
+     * @param DataObject $record
+     * @return string
+     */
+    public function getActionName($field, $record)
+    {
+        // Example of data
+        // ---------------
+        //  Level 1 Nest:
+        //  -------------
+        //  [0] => ElementArea [1] => MultiRecordEditingField [2] => ElementGallery [3] => new_2 [4] => Images
+        //
+        //  Level 2 Nest:
+        //  -------------
+        //                     [5] => MultiRecordEditingField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
+        // 
+        //
+        $id = ($record && $record->exists()) ? $record->ID : 'new';
+        $nameData = $this->getFieldName($field, $record);
+        $nameData = explode('__', $nameData);
+        $nameDataCount = count($nameData);
+        $action = $nameData[0];
+        for ($i = 1; $i < $nameDataCount; $i += 4)
+        {
+            $signature = $nameData[$i];
+            if ($signature !== 'MultiRecordEditingField')
+            {
+                throw new LogicException('Error caused by developer. Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
+            }
+            $class = $nameData[$i + 1];
+            $subFieldName = $nameData[$i + 3];
+            $action .= '/addinlinerecord/'.$class.'/'.$id.'/field/'.$subFieldName;
+        }
+        return $action;
+    }
 
     /**
      * @param string|FormField $field
@@ -721,6 +750,13 @@ class MultiRecordEditingField extends FormField
                             throw new Exception('Missing field "'.$fieldName.'"');
                         }
                         $field = $fields[$fieldName];
+                        /*if ($field instanceof FileField) 
+                        {
+                            Debug::dump($_FILES);
+                            Debug::dump($value);
+                            Debug::dump($field);
+                            
+                        }*/
                         $field->setValue($value);
                         $field->saveInto($subRecord);
                     }
@@ -763,9 +799,9 @@ class MultiRecordEditingField extends FormField
                 }
             }
             // Debug list
-            //Debug::dump($list->toArray()); 
-            //Debug::Dump($class_id_field);
-            //exit(__FUNCTION__.'_nested');
+            // Debug::dump($list->toArray()); 
+            // Debug::Dump($class_id_field);
+            // exit(__FUNCTION__.'_nested');
             return;
         }
 
@@ -822,7 +858,10 @@ class MultiRecordEditingField extends FormField
                     if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
                     {
                         // 1st Nest Level
-                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;
+                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;/*array(
+                            'Name' => $name,
+                            'Value' => $value
+                        );*/
                     }
                     else
                     {
@@ -882,7 +921,7 @@ class MultiRecordEditingField extends FormField
             }
 
             // Setup list to manipulate on $record based on the relation name.
-            $listOrDataObject = $record->$relationFieldName();
+            /*$listOrDataObject = $record->$relationFieldName();
             if ($listOrDataObject instanceof DataObject) 
             {
                 // todo(Jake): Rewrite to use 'getMultiRecordEditingFieldList' function
@@ -901,7 +940,7 @@ class MultiRecordEditingField extends FormField
             else if (!$listOrDataObject instanceof SS_List) 
             {
                 throw new Exception('Unable to work with relation field "'.$relationFieldName.'".');
-            }
+            }*/
 
             // Save existing items
             foreach (self::$_existing_records_to_write as $subRecord) 
