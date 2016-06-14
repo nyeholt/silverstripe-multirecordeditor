@@ -560,15 +560,11 @@ class MultiRecordEditingField extends FormField
                 // Rewrite UploadField's "Select file" iframe to go through
                 // this field.
                 $action = $this->getActionName($field, $record);
-                Debug::dump(Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'));
-                Debug::dump($action); exit;
 
-                $urlSelectDialog = $field->getConfig('urlSelectDialog');
-                if (!$urlSelectDialog) {
-                    $urlSelectDialog = Controller::join_links('addinlinerecord', $record->class, $field->name, 'select'); // NOTE: $field->Link('select') without Form action link.
-                }
-                $field->setConfig('urlSelectDialog', $this->Link($urlSelectDialog));
-                //$field->setAutoUpload(false);
+                $field = MultiRecordEditingUploadField::cast($field);
+                $field->multiRecordEditingFieldAction = $action;
+
+                //$field->setConfig('urlSelectDialog', $this->form->FormAction().'/field/'.$action.'/select');
             }
 
             // NOTE(Jake): Required to support UploadField
@@ -730,7 +726,7 @@ class MultiRecordEditingField extends FormField
                         // Find existing
                         $id = (int)$id;
                         if (!isset($flatList[$id])) {
-                            throw new Exception('Record #'.$id.' does not exist.');
+                            throw new Exception('Record #'.$id.' does not exist. (From ID string: '.$idString.')');
                         }
                         $subRecord = $flatList[$id];
                     }

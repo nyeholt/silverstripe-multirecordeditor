@@ -89,6 +89,34 @@
 			console.log(options.url);
 		});
 
+		/*$( document ).ajaxComplete(function(e, handler) {
+		  	console.log('eyy');
+		  	console.log(e);
+		  	console.log(handler);
+		  	console.log('-AJAXCOMPLETE-');
+		});*/
+
+		//
+		// UploadField.js
+		//
+		$('div.ss-upload').entwine({
+			onmatch: function() {
+				this._super();
+				this.fileupload($.extend(true, 
+					{
+						formData: function(form) {
+							alert("wow");
+							/*var idVal = $(form).find(':input[name=ID]').val();
+							var data = [{name: 'SecurityID', value: $(form).find(':input[name=SecurityID]').val()}];
+							if(idVal) data.push({name: 'ID', value: idVal});
+							
+							return data;*/
+						}
+					}
+				));
+			}
+		});
+
 		//
 		// I/O
 		//
