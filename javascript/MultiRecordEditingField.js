@@ -12,9 +12,14 @@
 
 		function renderTemplate(name, variables) {
 			var result = _cache[name];
-			for (var key in variables)
+			for (var i = 0; i < variables.length; ++i)
 			{
-				result = result.replace(new RegExp('o-multirecordediting-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), variables[key]);
+				var it = variables[i];
+				var index = i + 1;
+				for (var key in it)
+				{
+					result = result.replace(new RegExp('o-multirecordediting-'+index+'-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), it[key]);
+				}
 			}
 			return result;
 		}
@@ -75,9 +80,9 @@
 			}
 		});
 
+		// todo(jake): remove if unused
 		$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
 			console.log(options.url);
-			
 		});
 
 		//
@@ -120,16 +125,36 @@
 				var fieldName = $self.data('name');
 				this.addinlinerecord(className, function(data) {
 					var num = $self.data('add-inline-num') || 1;
+					var depth = $self.data('depth');
 
 					if (!hasTemplate(className)) {
 						setTemplate(className, data);
 					}
 
-					var $parent = $self.parents('.js-multirecordediting-field');
-					$parent.find('.js-multirecordediting-list').first().append(renderTemplate(className, { 
+					//var $parents = $self.parents('.js-multirecordediting-list-item');
+					//console.log($parents.length + ' depth');
+					var $parents = $self.parents('.js-multirecordediting-list-item');
+					var templateDepthVariables = [];
+					console.log('Parents: ' + $parents.length);
+					for (var i = 0; i < $parents.length; ++i)
+					{
+						var subID = $($parents[i]).data('id');
+						var subSort = 0; // todo(jake): get sort from 'new_1'
+						templateDepthVariables.push({ 
+							id: subID,
+							sort: subSort,
+						});
+					}
+					templateDepthVariables.push({ 
 						id: 'new_'+num,
 						sort: num,
-					}));
+					});
+
+					// Find field container ('js-multirecordediting-field') and add HTML
+					// in the field list container.
+					var $field = $self.parents('.js-multirecordediting-field').first();
+					var $fieldList = $field.find('.js-multirecordediting-list').first();
+					$fieldList.append(renderTemplate(className, templateDepthVariables));
 
 					$self.data('add-inline-num', num + 1);
 				});

@@ -58,6 +58,13 @@ class MultiRecordEditingField extends FormField
     protected $extraClasses = array();
 
     /**
+     * How nested inside other MultiRecordEditingField's this field is.
+     *
+     * @var int
+     */
+    protected $depth = 1;
+
+    /**
      * The MultiRecordEditingField this field belongs to. (If any)
      *
      * @var null|MultiRecordEditingField
@@ -353,12 +360,12 @@ class MultiRecordEditingField extends FormField
     /**
      *  @return int|string
      */
-    public static function get_field_id($record) {
+    public function getFieldID($record) {
         if ($record && $record->ID) {
             return (int)$record->ID;
         }
         // NOTE(Jake): Not '{%=o.multirecordediting.id%}' with tmpl.js because SS strips '{', '}' and replaces '.' with '-'
-        return 'o-multirecordediting-id';
+        return 'o-multirecordediting-'.$this->depth.'-id';
     }
 
     /**
@@ -451,7 +458,7 @@ class MultiRecordEditingField extends FormField
             }
             if (!$sortField)
             {
-                $sortValue = ($record && $record->exists()) ? $record->$sortField : 'o-multirecordediting-sort';
+                $sortValue = ($record && $record->exists()) ? $record->$sortField : 'o-multirecordediting-'.$this->depth.'-sort';
                 $sortField = HiddenField::create($sortFieldName)->setAttribute('value', $sortValue);
                 $fields[$sortFieldName] = $sortField;
             }
@@ -464,12 +471,18 @@ class MultiRecordEditingField extends FormField
         if ($status) {
             $recordSectionTitle .= ' ('.$status.')';
         }
+        if (!$recordSectionTitle) {
+            // NOTE(Jake): Ensures no title'd ToggleCompositeField's have a proper height.
+            $recordSectionTitle = '&nbsp;';
+        }
 
         // Add heading field / Togglable composite field with heading
-        $recordID = static::get_field_id($record);
+        $recordID = $this->getFieldID($record);
         $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $recordSectionTitle, null);
         $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
         $tab->setStartClosed(false);
+        $tab->Parent = $this;
+        // todo(Jake): Use $Parent.CanSort in template
         $tab->CanSort = $this->CanSort;
         
         /*$parentFields = null;
@@ -517,6 +530,7 @@ class MultiRecordEditingField extends FormField
                 //                     [5] => MultiRecordEditingField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
                 // 
                 //
+                $field->depth = $this->depth + 1;
                 $nameData = $this->getFieldName($field, $record);
                 $nameData = explode('__', $nameData);
                 $nameDataCount = count($nameData);
@@ -617,7 +631,7 @@ class MultiRecordEditingField extends FormField
     protected function getFieldName($field, $record)
     {
         $name = $field instanceof FormField ? $field->getName() : $field;
-        $recordID = static::get_field_id($record);
+        $recordID = $this->getFieldID($record);
 
         return sprintf(
             '%s__%s__%s__%s__%s', $this->getName(), 'MultiRecordEditingField', $record->ClassName, $recordID, $name
@@ -734,8 +748,10 @@ class MultiRecordEditingField extends FormField
                         self::$_existing_records_to_write[] = $subRecord;
                     } else {
                         // Add to the list
+                        self::$_new_records_to_write[] = $subRecord;
                         if ($list instanceof UnsavedRelationList 
-                            || $list instanceof HasManyList) 
+                            || $list instanceof HasManyList
+                            || $list instanceof ManyManyList)
                         {
                             $list->add($subRecord);
                         } 
@@ -743,7 +759,6 @@ class MultiRecordEditingField extends FormField
                         {
                             throw new Exception('Unsupported SS_List type "'.$list->class.'"');
                         }
-                        self::$_new_records_to_write[] = $subRecord;
                     }
                 }
             }
@@ -893,33 +908,11 @@ class MultiRecordEditingField extends FormField
             {
                 $subRecord->write();
             }
+
+            Debug::dump($relation_class_id_field); exit;
         }
 
-         // Save existing has_one/has_many/many_many records
-        /*$allItems = array();
-        foreach ($this->children as $field) {
-            $fieldname = $field->getName();
-            if (strpos($fieldname, '__') > 0) {
-                $bits = array_reverse(explode('__', $fieldname));
-                if (count($bits) > 3) {
-                    list($dataFieldName, $id, $classname) = $bits;
-                    if (!isset($allItems["$classname-$id"])) {
-                        $item                       = $this->list->filter(array('ClassName' => $classname, 'ID' => $id))->first();
-                        $allItems["$classname-$id"] = $item;
-                    }
-                    $item = $allItems["$classname-$id"];
-                    if ($item) {
-                        if ($field) {
-                            $field->setName($dataFieldName);
-                            $field->saveInto($item);
-                        }
-                    }
-                }
-            }
-        }
-        foreach ($allItems as $item) {
-            $item->write();
-        }*/
+        exit(__FUNCTION__);
     }
 
     /**
@@ -941,7 +934,7 @@ class MultiRecordEditingField extends FormField
         $modelFirstClass = key($modelClasses);
 
         $fields = FieldList::create();
-        $fields->unshift(LiteralField::create($this->getName().'_clearfix', '<div class="clear"><!-- --></div>'));
+        //$fields->unshift(LiteralField::create($this->getName().'_clearfix', '<div class="clear"><!-- --></div>'));
         $fields->unshift($inlineAddButton = FormAction::create($this->getName().'_addinlinerecord', 'Add')
                             ->addExtraClass('js-multirecordediting-add-inline')
                             ->setUseButtonTag(true));
@@ -950,6 +943,7 @@ class MultiRecordEditingField extends FormField
         $inlineAddButton->setAttribute('data-name', $this->getName());
         $inlineAddButton->setAttribute('data-action', $this->getName());
         $inlineAddButton->setAttribute('data-class', $modelFirstClass);
+        $inlineAddButton->setAttribute('data-depth', $this->depth);
         // Automatically apply all data attributes on this element, to the inline button.
         foreach ($this->getAttributes() as $name => $value)
         {

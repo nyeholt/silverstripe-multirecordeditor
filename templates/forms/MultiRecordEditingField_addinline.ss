@@ -1,2 +1,2 @@
 <%-- Called from MultiRecordEditingField::addinlinerecord --%>
-$Fields
+<% include MultiRecordEditingField %>
