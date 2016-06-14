@@ -1,5 +1,5 @@
-<div class="multirecordeditingfield-togglecompositefield" data-id="$Parent.getFieldID(0)">
-	<% if $CanSort %>
+<div class="multirecordeditingfield-togglecompositefield">
+	<% if $Parent.CanSort %>
 		<div class="multirecordeditingfield-togglecompositefield_sort">
 			<span class="multirecordeditingfield-togglecompositefield_sort_handle js-multirecordediting-sort-handle">
 				<span class="multirecordeditingfield-togglecompositefield_sort_handle_icon">Sort</span>

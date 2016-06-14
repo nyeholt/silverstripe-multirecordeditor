@@ -909,10 +909,10 @@ class MultiRecordEditingField extends FormField
                 $subRecord->write();
             }
 
-            Debug::dump($relation_class_id_field); exit;
+            //Debug::dump($record);
         }
 
-        exit(__FUNCTION__);
+       // exit(__FUNCTION__);
     }
 
     /**

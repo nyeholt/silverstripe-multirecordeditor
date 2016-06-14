@@ -12,6 +12,10 @@
 
 		function renderTemplate(name, variables) {
 			var result = _cache[name];
+			/*for (var key in variables)
+			{
+				result = result.replace(new RegExp('o-multirecordediting-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), variables[key]);
+			}*/
 			for (var i = 0; i < variables.length; ++i)
 			{
 				var it = variables[i];
@@ -128,24 +132,30 @@
 					var depth = $self.data('depth');
 
 					if (!hasTemplate(className)) {
+						// todo(Jake): Ensure cache takes into account parent element tree
 						setTemplate(className, data);
 					}
 
-					//var $parents = $self.parents('.js-multirecordediting-list-item');
-					//console.log($parents.length + ' depth');
+
+					//
+					// Prepare the variables to replace in deeply nested field names, ie.
+					// ie. ElementArea__MultiRecordEditingField__ElementGallery__o-multirecordediting-1-id__Images__MultiRecordEditingField__ElementGallery_Item__o-multirecordediting-2-id__Items__MultiRecordEditingField__ElementGallery_Item_Item__o-multirecordediting-3-id__Name
+					// -becomes:-
+					// ElementArea__MultiRecordEditingField__ElementGallery__new_1__Images__MultiRecordEditingField__ElementGallery_Item__new_1__Items__MultiRecordEditingField__ElementGallery_Item_Item__new_1__Name
+					//
+					var renderTree = [];
 					var $parents = $self.parents('.js-multirecordediting-list-item');
-					var templateDepthVariables = [];
-					console.log('Parents: ' + $parents.length);
-					for (var i = 0; i < $parents.length; ++i)
+					for (var i = $parents.length - 1; i >= 0; --i)
 					{
-						var subID = $($parents[i]).data('id');
-						var subSort = 0; // todo(jake): get sort from 'new_1'
-						templateDepthVariables.push({ 
+						// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
+						var $it = $($parents[i]);
+						var subID = $it.data('id');
+						renderTree.push({ 
 							id: subID,
-							sort: subSort,
+							sort: 0, // todo(Jake): extract sort ID from subID
 						});
 					}
-					templateDepthVariables.push({ 
+					renderTree.push({ 
 						id: 'new_'+num,
 						sort: num,
 					});
@@ -154,7 +164,7 @@
 					// in the field list container.
 					var $field = $self.parents('.js-multirecordediting-field').first();
 					var $fieldList = $field.find('.js-multirecordediting-list').first();
-					$fieldList.append(renderTemplate(className, templateDepthVariables));
+					$fieldList.append(renderTemplate(className, renderTree));
 
 					$self.data('add-inline-num', num + 1);
 				});
