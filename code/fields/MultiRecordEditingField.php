@@ -838,27 +838,11 @@ class MultiRecordEditingField extends FormField
                     $new_id = $fieldParameters[3];
                     $fieldName = $fieldParameters[4];
 
-                    // From eg. 'new_1', check to ensure 'new' is there and retrieve
-                    // the ID.
-                    /*($new_id_arr = explode('_', $new_id);
-                    if (!isset($new_id_arr[0]) && $new_id_arr[0] !== 'new') {
-                        // todo(Jake): better error msg.
-                        throw new Exception('Missing "new" keyword.');
-                    }
-                    if (!isset($new_id_arr[1])) {
-                        // todo(Jake): better error msg.
-                        throw new Exception('Missing id of new record.');
-                    }
-                    $id = $new_id_arr[1];*/
-
                     //
                     if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
                     {
                         // 1st Nest Level
-                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;/*array(
-                            'Name' => $name,
-                            'Value' => $value
-                        );*/
+                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;
                     }
                     else
                     {
@@ -882,6 +866,21 @@ class MultiRecordEditingField extends FormField
                 }
             }
 
+            // HACK(Jake): The UnsavedRelationList passed by ElementPageExtension doesn't work
+            //             properly for unsaved $record items some reason, so I'm re-setting the SS_List to use here.
+            //
+            //             This is to workaround ObjectCreatorPage not using the exact same instance it had when it
+            //             created the form fields.            
+            //  
+            if ($this->list instanceof UnsavedRelationList)
+            {
+                if ($record->hasExtension('ElementPageExtension'))
+                {
+                    $this->list = $record->ElementArea()->Widgets();
+                }
+            }
+
+            // Save all fields, including nested MultiRecordEditingField's
             self::$_new_records_to_write = array();
             self::$_existing_records_to_write = array();
             foreach ($relation_class_id_field as $relation => $class_id_field)
@@ -945,10 +944,14 @@ class MultiRecordEditingField extends FormField
                 $subRecord->write();
             }
 
+
             //Debug::dump($record);
+           // Debug::dump($record->ElementArea());
+            //Debug::dump($record->ElementArea()->getComponents('Widgets'));
+            //Debug::dump($this->list);
         }
 
-       // exit(__FUNCTION__);
+        //exit(__FUNCTION__);
     }
 
     /**
@@ -1094,17 +1097,14 @@ class MultiRecordEditingField extends FormField
     }
 
     public function FieldHolder($properties = array()) {
-        if ($this->canAddInline)
-        {
-            // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
-            //             Requirements::javascript on-the-fly.
-            Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
-            Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
-            Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
-            Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
-            Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
-            Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
-        }
+        // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
+        //             Requirements::javascript on-the-fly.
+        Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
+        Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
+        Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
+        Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
+        Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
+        Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
 
         foreach ($this->list as $record) 
         {
