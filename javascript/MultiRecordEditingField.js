@@ -10,22 +10,22 @@
 			return (typeof _cache[name] !== 'undefined'); 
 		}
 
-		function renderTemplate(name, variables) {
-			var result = _cache[name];
-			/*for (var key in variables)
-			{
-				result = result.replace(new RegExp('o-multirecordediting-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), variables[key]);
-			}*/
+		function renderString(string, variables) {
 			for (var i = 0; i < variables.length; ++i)
 			{
 				var it = variables[i];
 				var index = i + 1;
 				for (var key in it)
 				{
-					result = result.replace(new RegExp('o-multirecordediting-'+index+'-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), it[key]);
+					string = string.replace(new RegExp('o-multirecordediting-'+index+'-'+key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), it[key]);
 				}
 			}
-			return result;
+			return string;
+		}
+
+		function renderTemplate(name, variables) {
+			var result = _cache[name];
+			return renderString(result, variables);
 		}
 
 		function getTemplate(name, html) {
@@ -99,22 +99,63 @@
 		//
 		// UploadField.js
 		//
-		$('div.ss-upload').entwine({
+		/*$('div.ss-upload').entwine({
 			onmatch: function() {
 				this._super();
 				this.fileupload($.extend(true, 
 					{
 						formData: function(form) {
-							alert("wow");
-							/*var idVal = $(form).find(':input[name=ID]').val();
-							var data = [{name: 'SecurityID', value: $(form).find(':input[name=SecurityID]').val()}];
-							if(idVal) data.push({name: 'ID', value: idVal});
+							//alert("wow");
+							//var idVal = $(form).find(':input[name=ID]').val();
+							//var data = [{name: 'SecurityID', value: $(form).find(':input[name=SecurityID]').val()}];
+							//if(idVal) data.push({name: 'ID', value: idVal});
 							
-							return data;*/
+							//return data;
 						}
 					}
 				));
 			}
+		});*/
+
+		// todo(Jake): Fix on FORM refersh on AJAX
+		$('.js-multirecordediting-field').closest('form').bind('dirty', function() {
+			var $self = $(this);
+
+
+			/*var $btn = $parents.first().find('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline');
+			var num = $btn.data('add-inline-num') || 1;
+			renderTree.push({ 
+				id: 'new_'+num,
+				sort: num,
+			});*/
+
+
+			setTimeout(function() {
+				$('.ss-uploadfield-item-info').find('input').each(function() {
+					var name = $(this).attr('name');
+					if (name && name.indexOf('o-multirecordediting') > -1)
+					{
+						var renderTree = [];
+						var $parents = $(this).parents('.js-multirecordediting-list-item');
+						for (var i = $parents.length - 1; i >= 0; --i)
+						{
+							// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
+							var $it = $($parents[i]);
+							var subID = $it.data('id');
+							renderTree.push({ 
+								id: subID,
+								sort: 0, // todo(Jake): extract sort ID from subID
+							});
+						}
+						console.log(renderTree);
+						var newName = renderString(name, renderTree);
+						if (newName !== name)
+						{
+							$(this).attr('name', newName);
+						}
+					}
+				});
+			}, 50); // NOTE(Jake): 0 = execute next frame/tick
 		});
 
 		//

@@ -508,6 +508,7 @@ class MultiRecordEditingField extends FormField
         $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
         $tab->setStartClosed(false);
         $tab->Parent = $this;
+        $tab->MultiRecordEditingFieldRecord = $record;
         // todo(Jake): Use $Parent.CanSort in template
         $tab->CanSort = $this->CanSort;
         
