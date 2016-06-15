@@ -550,22 +550,32 @@ class MultiRecordEditingField extends FormField
                 $action = $this->getActionName($field, $record);
                 $field->setAttribute('data-action', $action);
             }
-            if ($field instanceof HtmlEditorField) 
+            else
             {
-                if ($this->htmlEditorHeight) {
-                    $field->setRows($this->htmlEditorHeight);
+                if ($field instanceof HtmlEditorField) 
+                {
+                    if ($this->htmlEditorHeight) {
+                        $field->setRows($this->htmlEditorHeight);
+                    }
+                } 
+                else if ($field instanceof UploadField) 
+                {
+                    // Rewrite UploadField's "Select file" iframe to go through
+                    // this field.
+                    $action = $this->getActionName($field, $record);
+
+                    $field = MultiRecordEditingUploadField::cast($field);
+                    $field->multiRecordEditingFieldAction = $action;
                 }
-            } 
-            else if ($field instanceof UploadField) 
-            {
-                // Rewrite UploadField's "Select file" iframe to go through
-                // this field.
-                $action = $this->getActionName($field, $record);
+                else if ($field instanceof FileAttachmentField) 
+                {
+                    // Support for Unclecheese's Dropzone module
+                    // @see: https://github.com/unclecheese/silverstripe-dropzone/tree/1.2.3
+                    $action = $this->getActionName($field, $record);
 
-                $field = MultiRecordEditingUploadField::cast($field);
-                $field->multiRecordEditingFieldAction = $action;
-
-                //$field->setConfig('urlSelectDialog', $this->form->FormAction().'/field/'.$action.'/select');
+                    $field = MultiRecordEditingFileAttachmentField::cast($field);
+                    $field->multiRecordEditingFieldAction = $action;
+                }
             }
 
             // NOTE(Jake): Required to support UploadField
