@@ -475,8 +475,6 @@ class MultiRecordEditingField extends FormField
         $sortFieldName = $this->getSortFieldName();
         if ($sortFieldName)
         {
-            // todo(Jake): allow no sort field to work + better error message
-            //throw new Exception('Unable to determine sort field name.');
             $sortField = isset($fields[$sortFieldName]) ? $fields[$sortFieldName] : null;
             if ($sortField && !$sortField instanceof HiddenField)
             {
@@ -484,9 +482,20 @@ class MultiRecordEditingField extends FormField
             }
             if (!$sortField)
             {
-                $sortValue = ($record && $record->exists()) ? $record->$sortField : 'o-multirecordediting-'.$this->depth.'-sort';
-                $sortField = HiddenField::create($sortFieldName)->setAttribute('value', $sortValue);
-                $fields[$sortFieldName] = $sortField;
+                $sortValue = ($record && $record->exists()) ? $record->$sortFieldName : 'o-multirecordediting-'.$this->depth.'-sort';
+                $sortField = HiddenField::create($sortFieldName);
+                if ($sortField instanceof HiddenField) {
+                    $sortField->setAttribute('value', $sortValue);
+                } else {
+                    $sortField->setValue($sortValue);
+                }
+                // NOTE(Jake): Uses array_merge() to prepend the sort field in the $fields associative array.
+                //             The sort field is prepended so jQuery.find('.js-multirecordediting-sort-field').first()
+                //             finds the related sort field to this, rather than a sort field nested deeply in other
+                //             MultiRecordEditingField's.
+                $fields = array_merge(array(
+                    $sortFieldName => $sortField
+                ), $fields);
             }
             $sortField->addExtraClass('js-multirecordediting-sort-field');
         }
@@ -527,7 +536,7 @@ class MultiRecordEditingField extends FormField
         $recordExists = $record->exists();
 
         $currentFieldListModifying = $tab;
-        foreach ($fields as $k => $field)
+        foreach ($fields as $field)
         {
             $fieldName = $field->getName();
 

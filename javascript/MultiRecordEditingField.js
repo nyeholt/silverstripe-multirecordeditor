@@ -69,7 +69,10 @@
 				function stop(e) {
 					self.parent().children().each(function(index) {
 						var sortValue = index + 1;
-						$(this).find('.js-multirecordediting-sort-field').val(sortValue);
+						// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
+						//			   sort fields in nested MultiRecordEditingField's.
+						var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
+						$sortField.val(sortValue.toString());
 					});
 				}
 
@@ -104,9 +107,6 @@
 						// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
 						var $it = $($parents[i]);
 						var subID = $it.data('id');
-						// todo(Jake): remove sort info, its not needed at this level
-						//var idParts = subID.toString().split('_');
-						//var sort = (idParts.length >= 2) ? idParts[1] : subID; // if subID = 'new_3', then sort = 3. If subID = '10', then sort = 10
 						renderTree.push({ 
 							id: subID,
 						});
@@ -178,9 +178,11 @@
 						// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
 						var $it = $($parents[i]);
 						var subID = $it.data('id');
+						var idParts = subID.toString().split('_');
+						var sort = (idParts.length >= 2) ? idParts[1] : 0; // if subID = 'new_3', then sort = 3. If subID = '10', then don't bother with sort as its already set (ie. make it 0, who cares)
 						renderTree.push({ 
 							id: subID,
-							sort: 0, // todo(Jake): extract sort ID from subID
+							sort: sort,
 						});
 					}
 					renderTree.push({ 
@@ -222,7 +224,7 @@
 						url: url,
 						success: function(data) {
 							if (!hasTemplate(className)) {
-								// todo(Jake): Ensure cache takes into account parent element tree
+								// todo(Jake): Ensure cache takes into account parent element tree (classes, specific IDs for parents, etc)
 								setTemplate(className, data);
 							}
 							callback.apply(this, arguments);
