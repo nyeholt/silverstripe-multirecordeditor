@@ -1,5 +1,5 @@
 (function($) {
-	$.entwine('ss', function($) {
+	$.entwine('ss.multirecordediting', function($) {
 		//
 		// Template System
 		//
@@ -89,73 +89,38 @@
 			console.log(options.url);
 		});
 
-		/*$( document ).ajaxComplete(function(e, handler) {
-		  	console.log('eyy');
-		  	console.log(e);
-		  	console.log(handler);
-		  	console.log('-AJAXCOMPLETE-');
-		});*/
-
-		//
-		// UploadField.js
-		//
-		/*$('div.ss-upload').entwine({
+		// Replace o-multirecordediting-* template variable with value when
+		// the <input type="hidden"> tag is created after a file is selected/uploaded
+		$('.ss-uploadfield-item-info input').entwine({
 			onmatch: function() {
 				this._super();
-				this.fileupload($.extend(true, 
+				var name = this.attr('name');
+				if (name && name.indexOf('o-multirecordediting') > -1)
+				{
+					var renderTree = [];
+					var $parents = $(this).parents('.js-multirecordediting-list-item');
+					for (var i = $parents.length - 1; i >= 0; --i)
 					{
-						formData: function(form) {
-							//alert("wow");
-							//var idVal = $(form).find(':input[name=ID]').val();
-							//var data = [{name: 'SecurityID', value: $(form).find(':input[name=SecurityID]').val()}];
-							//if(idVal) data.push({name: 'ID', value: idVal});
-							
-							//return data;
-						}
+						// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
+						var $it = $($parents[i]);
+						var subID = $it.data('id');
+						// todo(Jake): remove sort info, its not needed at this level
+						//var idParts = subID.toString().split('_');
+						//var sort = (idParts.length >= 2) ? idParts[1] : subID; // if subID = 'new_3', then sort = 3. If subID = '10', then sort = 10
+						renderTree.push({ 
+							id: subID,
+						});
 					}
-				));
+					var newName = renderString(name, renderTree);
+					if (newName !== name)
+					{
+						$(this).attr('name', newName);
+					}
+				}
+			},
+			onunmatch: function() {
+				this._super();
 			}
-		});*/
-
-		// todo(Jake): Fix on FORM refersh on AJAX
-		$('.js-multirecordediting-field').closest('form').bind('dirty', function() {
-			var $self = $(this);
-
-
-			/*var $btn = $parents.first().find('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline');
-			var num = $btn.data('add-inline-num') || 1;
-			renderTree.push({ 
-				id: 'new_'+num,
-				sort: num,
-			});*/
-
-
-			setTimeout(function() {
-				$('.ss-uploadfield-item-info').find('input').each(function() {
-					var name = $(this).attr('name');
-					if (name && name.indexOf('o-multirecordediting') > -1)
-					{
-						var renderTree = [];
-						var $parents = $(this).parents('.js-multirecordediting-list-item');
-						for (var i = $parents.length - 1; i >= 0; --i)
-						{
-							// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
-							var $it = $($parents[i]);
-							var subID = $it.data('id');
-							renderTree.push({ 
-								id: subID,
-								sort: 0, // todo(Jake): extract sort ID from subID
-							});
-						}
-						console.log(renderTree);
-						var newName = renderString(name, renderTree);
-						if (newName !== name)
-						{
-							$(this).attr('name', newName);
-						}
-					}
-				});
-			}, 50); // NOTE(Jake): 0 = execute next frame/tick
 		});
 
 		//
@@ -200,12 +165,6 @@
 					var num = $self.data('add-inline-num') || 1;
 					var depth = $self.data('depth');
 
-					if (!hasTemplate(className)) {
-						// todo(Jake): Ensure cache takes into account parent element tree
-						setTemplate(className, data);
-					}
-
-
 					//
 					// Prepare the variables to replace in deeply nested field names, ie.
 					// ie. ElementArea__MultiRecordEditingField__ElementGallery__o-multirecordediting-1-id__Images__MultiRecordEditingField__ElementGallery_Item__o-multirecordediting-2-id__Items__MultiRecordEditingField__ElementGallery_Item_Item__o-multirecordediting-3-id__Name
@@ -237,6 +196,8 @@
 
 					$self.data('add-inline-num', num + 1);
 				});
+
+				this._super();
 			},
 			addinlinerecord: function(className, callback) {
 				var self = this[0];
@@ -260,6 +221,10 @@
 						cache: false,
 						url: url,
 						success: function(data) {
+							if (!hasTemplate(className)) {
+								// todo(Jake): Ensure cache takes into account parent element tree
+								setTemplate(className, data);
+							}
 							callback.apply(this, arguments);
 						},
 						error: function(xhr, status) {
@@ -275,6 +240,8 @@
 					var data = getTemplate(className);
 					callback.apply(this, [data]);
 				}
+
+				this._super();
 			}
 		});
 	});
