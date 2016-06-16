@@ -1,25 +1,23 @@
 .multirecordeditingfield-subrecordfield {
-	display: table;
-	table-layout: fixed;
-	width: 100%;
-}
-
-.multirecordeditingfield-subrecordfield > * {
-	display: table-cell;
-	vertical-align: middle;
+	position: relative;
+	z-index: 0;
 }
 
 .multirecordeditingfield-subrecordfield > .multirecordeditingfield-subrecordfield_sort {
-	width: 8%;
-	font-size: 0;
+	position: absolute;
+	left: 0;
+	top: 50%;
+	margin-top: -15px;
+	z-index: 0;
 }
 
-.multirecordeditingfield-subrecordfield > div {
-	width: 90%;
+.multirecordeditingfield-subrecordfield > .multirecordeditingfield-subrecordfield_fields {
+	padding-left: 25px;
 }
 
 .multirecordeditingfield-subrecordfield_sort_handle {
 	position: relative;
+	left: -3px;
 	z-index: 0;
 	width: 25px;
 	height: 30px;

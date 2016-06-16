@@ -4,20 +4,22 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     /**
      * @var MultiRecordEditingField
      */
-    protected $parent;
+    protected $parent = null;
 
     /**
      * @var DataObject
      */
-    protected $record;
-
-    // todo(jake): document
-    protected $toggleCompositeField;
+    protected $record = null;
 
     /** 
      * @var boolean
      */
     protected $preparedForRender = false;
+
+    /**
+     * @var ToggleCompositeField
+     */
+    private $toggleCompositeField;
 
     /**
      * @param string $name
@@ -97,11 +99,23 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     protected function prepareForRender() {
         if (!$this->preparedForRender) {
             $this->preparedForRender = true;
+
+            // Check for user/dev errors
+            $record = $this->getRecord();
+            if (!$record || !is_object($record)) {
+                throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->record property. Ensure it\'s set by MultiRecordEditingField.');
+            }
+            $parent = $this->getParent();
+            if (!$parent || !is_object($parent) || !$parent instanceof MultiRecordEditingField) {
+                throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->parent property. Ensure it\'s set by MultiRecordEditingField.');
+            }
+
+            // Prepare ToggleCompositeField
             $field = $this->ToggleCompositeField();
             if ($field)
             {
                 $field->setForm($this->form);
-                $field->setChildren($this->children);
+                $field->setStartClosed($this->getRecord()->exists());
             }
             return true;
         }
