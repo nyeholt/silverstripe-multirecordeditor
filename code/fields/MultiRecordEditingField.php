@@ -458,12 +458,12 @@ class MultiRecordEditingField extends FormField
      * @return FieldList|null
      */
     public function getRecordDataFields(DataObjectInterface $record) {
-        if (method_exists($record, 'getMultiEditFields')) {
+        $fieldsMethod = 'getMultiEditFields';
+        if (!method_exists($record, 'getMultiEditFields')) {
             // todo(Jake): Allow 'getMultiEditFields' by extension using 'hasMethod'
-            $fields = $record->getMultiEditFields();
-        } else {
-            $fields = $record->getCMSFields();
+            $fieldsMethod = 'getCMSFields';
         }
+        $fields = $record->$fieldsMethod();
         $record->extend('updateMultiEditFields', $fields);
         $fields = $fields->dataFields();
         if (!$fields) {
@@ -478,7 +478,7 @@ class MultiRecordEditingField extends FormField
             $sortField = isset($fields[$sortFieldName]) ? $fields[$sortFieldName] : null;
             if ($sortField && !$sortField instanceof HiddenField)
             {
-                throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form.');
+                throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form. Suggestion: $fields->removeByName("'.$sortFieldName.'") in '.$record->class.'::'.$fieldsMethod.'().');
             }
             if (!$sortField)
             {
@@ -501,8 +501,9 @@ class MultiRecordEditingField extends FormField
         }
 
         // Set heading (ie. 'My Record (Draft)')
+        $recordExists = $record->exists();
         $recordSectionTitle = $record->Title;
-        $status = ($record->ID) ? $record->CMSPublishedState : 'New';
+        $status = ($recordExists) ? $record->CMSPublishedState : 'New';
         if ($status) {
             $recordSectionTitle .= ' ('.$status.')';
         }
@@ -513,28 +514,20 @@ class MultiRecordEditingField extends FormField
 
         // Add heading field / Togglable composite field with heading
         $recordID = $this->getFieldID($record);
-        $tab = ToggleCompositeField::create('CompositeHeader'.$recordID, $recordSectionTitle, null);
-        $tab->setTemplate('MultiRecordEditingField_'.$tab->class);
-        $tab->setStartClosed(false);
-        $tab->Parent = $this;
-        $tab->MultiRecordEditingFieldRecord = $record;
-        // todo(Jake): Use $Parent.CanSort in template
-        $tab->CanSort = $this->CanSort;
-        
-        /*$parentFields = null;
-        if ($parentFields) {
-            $parentFields->push($tab);
+        // todo(Jake): rename $tab to better name
+        $tab = MultiRecordEditingSubRecordField::create('MultiRecordEditingSubRecordField'.$recordID, $recordSectionTitle, null);
+        $tab->setParent($this);
+        $tab->setRecord($record);
+        /*$tab->setTemplate('MultiRecordEditingField_'.$tab->class);
+        if ($recordExists) {
+            $tab->setStartClosed(true);
         } else {
             $tab->setStartClosed(false);
-            $this->tabs->push($tab);
         }
-        if ($parentFields) {
-            // if we're not using toggles, we only add the header _if_ we're an inner item, ie $parentFields != null
-            $this->children->push(HeaderField::create('RecordHeader'.$recordID, $recordSectionTitle));
-        }*/
+        $tab->Parent = $this;
+        $tab->MultiRecordEditingFieldRecord = $record;*/
 
-        $recordExists = $record->exists();
-
+        // Modify sub-fields to work properly with this field
         $currentFieldListModifying = $tab;
         foreach ($fields as $field)
         {

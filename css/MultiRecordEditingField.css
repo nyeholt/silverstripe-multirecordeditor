@@ -1,24 +1,24 @@
-.multirecordeditingfield-togglecompositefield {
+.multirecordeditingfield-subrecordfield {
 	display: table;
 	table-layout: fixed;
 	width: 100%;
 }
 
-.multirecordeditingfield-togglecompositefield > * {
+.multirecordeditingfield-subrecordfield > * {
 	display: table-cell;
 	vertical-align: middle;
 }
 
-.multirecordeditingfield-togglecompositefield_sort {
+.multirecordeditingfield-subrecordfield > .multirecordeditingfield-subrecordfield_sort {
 	width: 8%;
 	font-size: 0;
 }
 
-.multirecordeditingfield-togglecompositefield > .togglecomposite {
+.multirecordeditingfield-subrecordfield > div {
 	width: 90%;
 }
 
-.multirecordeditingfield-togglecompositefield_sort_handle {
+.multirecordeditingfield-subrecordfield_sort_handle {
 	position: relative;
 	z-index: 0;
 	width: 25px;
@@ -27,7 +27,7 @@
 	cursor: move;
 }
 
-.multirecordeditingfield-togglecompositefield_sort_handle_icon {
+.multirecordeditingfield-subrecordfield_sort_handle_icon {
 	position: absolute;
 	top: 50%;
 	left: 50%;
