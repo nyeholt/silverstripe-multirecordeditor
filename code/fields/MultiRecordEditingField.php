@@ -1,10 +1,9 @@
 <?php
 
 /**
- * @author marcus
+ * @author Jake Bentvelzen, Marcus
  */
-class MultiRecordEditingField extends FormField
-{
+class MultiRecordEditingField extends FormField {
     /**
      * The list object passed into the object.
      * 
@@ -286,7 +285,7 @@ class MultiRecordEditingField extends FormField
      * @return \MultiRecordEditingField
      */
     public function setConfig($config) {
-        // Stubbed by design so developers can switch between GridField and this class quickly
+        // NOTE(Jake): Stubbed by design so developers can switch between GridField and this class quickly
         return $this;
     }
 
@@ -333,12 +332,6 @@ class MultiRecordEditingField extends FormField
                 return static::convert_to_associative($class);
             }
         }
-
-        // Fallback to the DataList/UnsavedRelationList
-        // todo(Jake): remove if unused
-        /*if ($this->originalList && $this->originalList instanceof UnsavedRelationList) {
-            return static::convert_to_associative(array($this->originalList->dataClass()));
-        }*/
 
         return array();
     }
@@ -884,13 +877,13 @@ class MultiRecordEditingField extends FormField
             //             This is to workaround ObjectCreatorPage not using the exact same instance it had when it
             //             created the form fields.            
             //  
-            if ($this->list instanceof UnsavedRelationList)
+            /*if ($this->list instanceof UnsavedRelationList)
             {
                 if ($record->hasExtension('ElementPageExtension'))
                 {
                     $this->list = $record->ElementArea()->Widgets();
                 }
-            }
+            }*/
 
             // Save all fields, including nested MultiRecordEditingField's
             self::$_new_records_to_write = array();
@@ -1014,6 +1007,26 @@ class MultiRecordEditingField extends FormField
     }
 
     /**
+     * Returns a read-only version of this field.
+     *
+     * @return MultiRecordEditingField_Readonly
+     */
+    public function performReadonlyTransformation() {
+        $resultField = MultiRecordEditingField_Readonly::create($this->name, $this->title, $this->list);
+        foreach (get_object_vars($this) as $property => $value)
+        {
+            $resultField->$property = $value;
+        }
+        return $resultField;
+        //$resultField->readonly = true;
+        foreach ($resultField->children as $field)
+        {
+            $resultField->children->replaceField($field->getName(), $field->performReadonlyTransformation());
+        }
+        return $resultField;
+    }
+
+    /**
      * @return FieldList
      */
     public function getChildren() {
@@ -1111,12 +1124,16 @@ class MultiRecordEditingField extends FormField
     public function FieldHolder($properties = array()) {
         // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
         //             Requirements::javascript on-the-fly.
-        Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
-        Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
-        Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
-        Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
-        Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
-        Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
+        $readonly = $this->isReadonly();
+        if (!$readonly)
+        {
+            Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
+            Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
+            Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
+            Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
+            Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
+            Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
+        }
 
         foreach ($this->list as $record) 
         {
@@ -1131,7 +1148,7 @@ class MultiRecordEditingField extends FormField
             }
             foreach ($recordFields as $field)
             {
-                if ($field instanceof ToggleCompositeField) {
+                if ($field instanceof MultiRecordEditingSubRecordField) {
                     $field->setName($this->getFieldName($field, $record));
                 }
                 $this->tabs->push($field);
@@ -1142,4 +1159,8 @@ class MultiRecordEditingField extends FormField
         //$properties['Tabs'] = $this->tabs; // todo(jake): remove no longer needed?
         return parent::FieldHolder($properties);
     }
+}
+
+class MultiRecordEditingField_Readonly extends MultiRecordEditingField {
+    protected $readonly = true;
 }

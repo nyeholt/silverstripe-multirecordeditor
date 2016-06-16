@@ -1,10 +1,12 @@
 <%-- todo(jake): add nice classes here --%>
-<div class="field {$ExtraClass} js-multirecordediting-field">
+<div class="field {$ExtraClass} <% if not $isReadonly %>js-multirecordediting-field<% end_if %>">
 	<div class="clear"></div>
-	<div>
-		$Actions
-	</div>
-	<div class="js-multirecordediting-list">
+	<% if not $isReadonly %>
+		<div>
+			$Actions
+		</div>
+	<% end_if %>
+	<div class="<% if not $isReadonly %>js-multirecordediting-list<% end_if %>">
 		$Field
 	</div>
 	<div class="clear"></div>

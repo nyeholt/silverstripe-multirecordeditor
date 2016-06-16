@@ -1,5 +1,5 @@
-<div class="multirecordeditingfield-subrecordfield js-multirecordediting-list-item" data-id="<% if $Record %>$Record.ID<% else %>$Parent.getFieldID(0)<% end_if %>">
-	<% if $CanSort %>
+<div class="multirecordeditingfield-subrecordfield <% if not $isReadonly %>js-multirecordediting-list-item<% end_if %>" data-id="<% if $Record %>$Record.ID<% else %>$Parent.getFieldID(0)<% end_if %>">
+	<% if not $isReadonly && $CanSort %>
 		<div class="multirecordeditingfield-subrecordfield_sort">
 			<span class="multirecordeditingfield-subrecordfield_sort_handle js-multirecordediting-sort-handle">
 				<span class="multirecordeditingfield-subrecordfield_sort_handle_icon">Sort</span>

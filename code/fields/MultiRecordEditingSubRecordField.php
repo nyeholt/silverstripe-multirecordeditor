@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * Keep track of the record editing and the MultiRecordEditingField
+ * this is attached to.
+ */
 class MultiRecordEditingSubRecordField extends CompositeField {
     /**
      * @var MultiRecordEditingField
@@ -19,7 +23,7 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     /**
      * @var ToggleCompositeField
      */
-    private $toggleCompositeField;
+    private $toggleCompositeField = null;
 
     /**
      * @param string $name
@@ -84,11 +88,30 @@ class MultiRecordEditingSubRecordField extends CompositeField {
      * @return ToggleCompositeField
      */
     public function ToggleCompositeField() {
-        if (!$this->toggleCompositeField) {
+        if ($this->toggleCompositeField === null) {
             $title = $this->Title();
             $this->toggleCompositeField = ToggleCompositeField::create('CompositeHeader'.$this->getFieldID(), $title, $this->getChildren());
         }
         return $this->toggleCompositeField;
+    }
+
+    /**
+     * Returns a read-only version of this field.
+     *
+     * @return FormField
+     */
+    public function performReadonlyTransformation() {
+        $resultField = MultiRecordEditingSubRecordField_Readonly::create($this->name, $this->title, $this->list);
+        foreach (get_object_vars($this) as $property => $value)
+        {
+            $resultField->$property = $value;
+        }
+        $resultField->readonly = true;
+        foreach ($this->children as $field)
+        {
+            $this->children->replaceField($field->getName(), $field->performReadonlyTransformation());
+        }
+        return $resultField;
     }
 
     /** 
@@ -130,5 +153,17 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     public function Field($properties = array()) {
         $this->prepareForRender();
         return parent::Field($properties);
+    }
+}
+
+class MultiRecordEditingSubRecordField_Readonly extends MultiRecordEditingSubRecordField {
+    protected $readonly = true;
+
+    public function FieldHolder($properties = array()) {
+        return CompositeField::FieldHolder($properties);
+    }
+
+    public function Field($properties = array()) {
+        return CompositeField::Field($properties);
     }
 }
