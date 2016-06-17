@@ -616,12 +616,13 @@ class MultiRecordEditingField extends FormField {
                 {
                     $val = $record->__get($fieldName);
                 }
-                if (!$val && isset($record->{$fieldName.'ID'}))
+                // NOTE(Jake): breaks UploadField, put this udner FileAttachmentField
+                /*if (!$val && isset($record->{$fieldName.'ID'}))
                 {
                     // NOTE(Jake): This check was added for 'FileAttachmentField', not sure if any other FormField
                     //             items need this check.
                     $val = $record->__get($fieldName.'ID');
-                } 
+                }*/
                 // NOTE(Jake): Some fields like 'CheckboxSetField' require the DataObject/record as the 2nd parameter
                 $field->setValue($val, $record);
             }
@@ -848,7 +849,7 @@ class MultiRecordEditingField extends FormField {
                         if (isset($subRecordData[$sortFieldName])) {
                             $newSortValue = $subRecordData[$sortFieldName];
                         }
-                        if ($newSortValue && $subRecord->{$sortFieldName} != $newSortValue)
+                        if ($newSortValue)
                         {
                             $subRecord->{$sortFieldName} = $newSortValue;
                         }
@@ -978,7 +979,7 @@ class MultiRecordEditingField extends FormField {
 
             //
             // Check permissions on everything at once
-            // (includes records added in nested MultiRecordEditingField)
+            // (includes records added in nested-nested-nested-etc MultiRecordEditingField's)
             //
             $recordsPermissionUnable = array();
             foreach (self::$_new_records_to_write as $subRecordAndList) 
