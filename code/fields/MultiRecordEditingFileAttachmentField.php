@@ -48,7 +48,7 @@ class MultiRecordEditingFileAttachmentField extends FileAttachmentField {
      * @return MultiRecordEditingFileAttachmentField
      */ 
     public static function cast(FileAttachmentField $field) {
-        $castCopy = MultiRecordEditingFileAttachmentField::create($field->getName(), $field->Title());
+        $castCopy = MultiRecordEditingFileAttachmentField::create($field->getName(), $field->Title(), $field->Value(), $field->getForm());
         foreach (get_object_vars($field) as $property => $value)
         {
             $castCopy->$property = $value;

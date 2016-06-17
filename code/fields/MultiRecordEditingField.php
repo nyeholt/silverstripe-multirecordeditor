@@ -19,6 +19,28 @@ class MultiRecordEditingField extends FormField {
     const NEW_LIST = 1;
 
     /**
+     * Set variables or call functions on certain fields underneath this field.
+     * ie. Change rows to 6 for HtmlEditorField so it takes less space.
+     *
+     * @config
+     * @var array
+     */
+    private static $default_config = array(
+        'HtmlEditorField' => array(
+            'functions' => array(
+                'setRows' => 6,
+            ),
+        ),
+    );
+
+    /**
+     * Defaults to default_config if not set.
+     *
+     * @var array
+     */
+    protected $config = null;
+
+    /**
      * The list object passed into the object.
      * 
      * @var SS_List
@@ -241,11 +263,11 @@ class MultiRecordEditingField extends FormField {
      * @param int $value
      * @return \MultiRecordEditingField
      */
-    public function setHtmlEditorHeight($value)
+    /*public function setHtmlEditorHeight($value)
     {
         $this->htmlEditorHeight = $value;
         return $this;
-    }
+    }*/
 
     /**
      * @param boolean $value
@@ -284,8 +306,20 @@ class MultiRecordEditingField extends FormField {
     /**
      * @return \MultiRecordEditingField
      */
+    public function getConfig() {
+        return $this->config;
+    }
+
+    /**
+     * @return \MultiRecordEditingField
+     */
     public function setConfig($config) {
-        // NOTE(Jake): Stubbed by design so developers can switch between GridField and this class quickly
+        if ($config && $config instanceof GridFieldConfig) {
+            // NOTE(Jake): Stubbed by design so developers can switch between GridField and this class quickly for test/dev purposes.
+            return $this;
+        }
+        // todo(Jake): Improve API to allow multiple params (ie. setConfigFunction('HtmlEditorField', 'setRows', 6))
+        $this->config = $config;
         return $this;
     }
 
@@ -582,6 +616,12 @@ class MultiRecordEditingField extends FormField {
                 {
                     $val = $record->__get($fieldName);
                 }
+                if (!$val && isset($record->{$fieldName.'ID'}))
+                {
+                    // NOTE(Jake): This check was added for 'FileAttachmentField', not sure if any other FormField
+                    //             items need this check.
+                    $val = $record->__get($fieldName.'ID');
+                } 
                 // NOTE(Jake): Some fields like 'CheckboxSetField' require the DataObject/record as the 2nd parameter
                 $field->setValue($val, $record);
             }
@@ -590,17 +630,35 @@ class MultiRecordEditingField extends FormField {
                 $field->depth = $this->depth + 1;
                 $action = $this->getActionName($field, $record);
                 $field->setAttribute('data-action', $action);
+                // NOTE(Jake): Unclear at time of writing (17-06-2016) if nested MultiRecordEditingField should
+                //             inherit certain settings or not.
                 $field->setFieldsFunction($this->getFieldsFunction(), $this->fieldsFunctionFallback);
             }
             else
             {
-                if ($field instanceof HtmlEditorField) 
+                $config = $this->getConfig();
+                if ($config === null)
                 {
-                    if ($this->htmlEditorHeight) {
-                        $field->setRows($this->htmlEditorHeight);
+                    $config = $this->config()->default_config;
+                }
+                // todo(Jake): Make it walk class hierarchy so that things that extend say 'HtmlEditorField'
+                //             will also get the config. Make the '*HtmlEditorField' denote that it's only
+                //             for that class, sub-classes.
+                if (isset($config[$field->class]))
+                {
+                    $fieldConfig = $config[$field->class];
+                    $functionCalls = isset($fieldConfig['functions']) ? $fieldConfig['functions'] : array();
+                    if ($functionCalls)
+                    {
+                        foreach ($functionCalls as $methodName => $arguments)
+                        {
+                            $arguments = (array)$arguments;
+                            call_user_func_array(array($field, $methodName), $arguments);
+                        }
                     }
-                } 
-                else if ($field instanceof UploadField) 
+                }
+
+                if ($field instanceof UploadField) 
                 {
                     // Rewrite UploadField's "Select file" iframe to go through
                     // this field.
@@ -611,13 +669,17 @@ class MultiRecordEditingField extends FormField {
                 }
                 else if ($field instanceof FileAttachmentField) 
                 {
+                    // fix(Jake)
+                    // todo(Jake): Fix deletion
+
                     // Support for Unclecheese's Dropzone module
                     // @see: https://github.com/unclecheese/silverstripe-dropzone/tree/1.2.3
                     $action = $this->getActionName($field, $record);
-
                     $field = MultiRecordEditingFileAttachmentField::cast($field);
                     $field->multiRecordEditingFieldAction = $action;
                 }
+                // NOTE(Jake): Should probably add an ->extend() so other modules can monkey patch fields.
+                //             Will wait to see if its needed.
             }
 
             // NOTE(Jake): Required to support UploadField. Generic so any field can utilize this functionality.
@@ -765,6 +827,7 @@ class MultiRecordEditingField extends FormField {
                         throw new Exception($class.' is returning 0 fields.');
                     }
 
+                    //
                     foreach ($subRecordData as $fieldName => $value)
                     {
                         if ($sortFieldName !== $fieldName && 
@@ -781,13 +844,13 @@ class MultiRecordEditingField extends FormField {
                     // Handle sort if its not manually handled on the form
                     if ($sortFieldName && !isset($fields[$sortFieldName]))
                     {
-                        $sortValue = $id; // Default to order added
+                        $newSortValue = $id; // Default to order added
                         if (isset($subRecordData[$sortFieldName])) {
-                            $sortValue = $subRecordData[$sortFieldName];
+                            $newSortValue = $subRecordData[$sortFieldName];
                         }
-                        if ($sortValue)
+                        if ($newSortValue && $subRecord->{$sortFieldName} != $newSortValue)
                         {
-                            $subRecord->{$sortFieldName} = $sortValue;
+                            $subRecord->{$sortFieldName} = $newSortValue;
                         }
                     }
 
@@ -896,6 +959,23 @@ class MultiRecordEditingField extends FormField {
                 $this->setValue(null);
             }
 
+            // Remove records from list that haven't been changed to avoid unnecessary 
+            // permission check and ->write overhead
+            foreach (self::$_existing_records_to_write as $i => $subRecord)
+            {
+                $hasRecordChanged = false;
+                $changedFields = $subRecord->getChangedFields(true);
+                foreach ($changedFields as $field => $data)
+                {
+                    $hasRecordChanged = $hasRecordChanged || ($data['before'] != $data['after']);
+                }
+                if (!$hasRecordChanged)
+                {
+                    // Remove from list, stops the record from calling ->write()
+                    unset(self::$_existing_records_to_write[$i]);
+                }
+            }
+
             //
             // Check permissions on everything at once
             // (includes records added in nested MultiRecordEditingField)
@@ -966,6 +1046,8 @@ class MultiRecordEditingField extends FormField {
             // Save existing items
             foreach (self::$_existing_records_to_write as $subRecord) 
             {
+                // NOTE(Jake): Records are checked above to see if they've been changed.
+                //             If they haven't been changed, they're removed from the 'self::$_existing_records_to_write' list.
                 $subRecord->write();
             }
         }
