@@ -90,7 +90,9 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     public function ToggleCompositeField() {
         if ($this->toggleCompositeField === null) {
             $title = $this->Title();
-            $this->toggleCompositeField = ToggleCompositeField::create('CompositeHeader'.$this->getFieldID(), $title, $this->getChildren());
+            $record = $this->getRecord();
+            $recordClass = $record->class;
+            $this->toggleCompositeField = ToggleCompositeField::create('CompositeHeader_'.$recordClass.$this->getFieldID(), $title, $this->getChildren());
         }
         return $this->toggleCompositeField;
     }

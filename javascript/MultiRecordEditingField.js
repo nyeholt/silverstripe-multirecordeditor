@@ -67,13 +67,7 @@
 				}
 
 				function stop(e) {
-					self.parent().children().each(function(index) {
-						var sortValue = index + 1;
-						// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
-						//			   sort fields in nested MultiRecordEditingField's.
-						var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
-						$sortField.val(sortValue.toString());
-					});
+					self.sortupdate();
 				}
 
 				this.parent().sortable({
@@ -84,6 +78,18 @@
 					update: update,
 					stop: stop
 				});
+			},
+			onsortupdate: function() {
+				this.parent().children().each(function(index) {
+					var sortValue = index + 1;
+					// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
+					//			   sort fields in nested MultiRecordEditingField's.
+					var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
+					$sortField.val(sortValue.toString());
+				});
+			},
+			onnextsort: function() {
+				return this.parent().children().length + 1;
 			}
 		});
 
@@ -127,19 +133,6 @@
 		// I/O
 		//
 		$('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline').entwine({
-			onadd: function(e) {
-				/*var $form = $(this[0].form);
-				var formAction = $form.attr('action');
-				console.log(formAction);
-				$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
-					var formSegment = options.url.substr(0, formAction.length);
-					if (formAction === formSegment)
-					{
-						console.log('rewrite this inline field: '+options.url);
-					}
-					console.log(options.url);
-				});*/
-			},
 			onclick: function(e) {
 				e.preventDefault();
 

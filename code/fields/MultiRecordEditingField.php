@@ -575,8 +575,8 @@ class MultiRecordEditingField extends FormField {
                 }
             }
 
-            // NOTE(Jake): Required to support UploadField
-            if (method_exists($field, 'setRecord')) {
+            // NOTE(Jake): Required to support UploadField. Generic so any field can utilize this functionality.
+            if (method_exists($field, 'setRecord') || (method_exists($field, 'hasMethod') && $field->hasMethod('setRecord'))) {
                 $field->setRecord($record);
             }
 
@@ -637,7 +637,6 @@ class MultiRecordEditingField extends FormField {
         //                     [5] => MultiRecordEditingField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
         // 
         //
-        $id = ($record && $record->exists()) ? $record->ID : 'new';
         $nameData = $this->getFieldName($field, $record);
         $nameData = explode('__', $nameData);
         $nameDataCount = count($nameData);
@@ -650,6 +649,10 @@ class MultiRecordEditingField extends FormField {
                 throw new LogicException('Error caused by developer. Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
             }
             $class = $nameData[$i + 1];
+            $id = $nameData[$i + 2];
+            if (strpos($id, 'o-multirecordediting') !== FALSE) {
+                $id = 'new';
+            }
             $subFieldName = $nameData[$i + 3];
             $action .= '/addinlinerecord/'.$class.'/'.$id.'/field/'.$subFieldName;
         }
@@ -684,7 +687,7 @@ class MultiRecordEditingField extends FormField {
             }
 
             $list = $this->list;
-            $dataClass = $list->dataClass();
+            //$dataClass = $list->dataClass();
             $flatList = array();
             if ($list instanceof DataList) 
             {
@@ -696,7 +699,7 @@ class MultiRecordEditingField extends FormField {
             }
             else if (!$list instanceof UnsavedRelationList)
             {
-                throw new Exception('List type not support "'.$list->class.'".');
+                throw new Exception('List class "'.$list->class.'" not supported by '.__CLASS__);
             }
 
             $sortFieldName = $this->getSortFieldName();
@@ -706,6 +709,10 @@ class MultiRecordEditingField extends FormField {
                 // Create and add records to list
                 foreach ($id_field as $idString => $subRecordData)
                 {
+                    if (strpos($idString, 'o-multirecordediting') !== FALSE)
+                    {
+                        throw new Exception('Invalid template ID passed in ("'.$idString.'"). This should have been replaced by MultiRecordEditingField.js. Is your JavaScript broken?');
+                    }
                     $idParts = explode('_', $idString);
                     $id = 0;
                     $subRecord = null;
@@ -724,7 +731,7 @@ class MultiRecordEditingField extends FormField {
                         // New record
                         $subRecord = $class::create();
 
-                        // todo(Jake): if performance is sluggish, make any new records share
+                        // maybetodo(Jake): if performance is sluggish, make any new records share
                         //             the same fields as they should all output the same.
                         //             (ie. record->ID == 0 to cache fields)
                     }
@@ -734,7 +741,7 @@ class MultiRecordEditingField extends FormField {
                         // Find existing
                         $id = (int)$id;
                         if (!isset($flatList[$id])) {
-                            throw new Exception('Record #'.$id.' does not exist. (From ID string: '.$idString.')');
+                            throw new Exception('Record #'.$id.' on "'.$class.'" does not exist in this DataList context. (From ID string: '.$idString.')');
                         }
                         $subRecord = $flatList[$id];
                     }
@@ -790,11 +797,10 @@ class MultiRecordEditingField extends FormField {
                         // Add to the list
                         self::$_new_records_to_write[] = $subRecord;
                         if ($list instanceof UnsavedRelationList 
-                            || $list instanceof HasManyList
-                            || $list instanceof ManyManyList)
+                            || $list instanceof RelationList) // ie. HasManyList/ManyManyList
                         {
                             $list->add($subRecord);
-                        } 
+                        }
                         else 
                         {
                             throw new Exception('Unsupported SS_List type "'.$list->class.'"');
@@ -802,10 +808,6 @@ class MultiRecordEditingField extends FormField {
                     }
                 }
             }
-            // Debug list
-            // Debug::dump($list->toArray()); 
-            // Debug::Dump($class_id_field);
-            // exit(__FUNCTION__.'_nested');
             return;
         }
 
@@ -873,19 +875,8 @@ class MultiRecordEditingField extends FormField {
                 }
             }
 
-            // HACK(Jake): The UnsavedRelationList passed by ElementPageExtension doesn't work
-            //             properly for unsaved $record items some reason, so I'm re-setting the SS_List to use here.
-            //
-            //             This is to workaround ObjectCreatorPage not using the exact same instance it had when it
-            //             created the form fields.            
-            //  
-            /*if ($this->list instanceof UnsavedRelationList)
-            {
-                if ($record->hasExtension('ElementPageExtension'))
-                {
-                    $this->list = $record->ElementArea()->Widgets();
-                }
-            }*/
+            // Debugging
+            //Debug::dump($relation_class_id_field); exit('Exited at: '.__CLASS__.'::'.__FUNCTION__);// Debug raw request information tree
 
             // Save all fields, including nested MultiRecordEditingField's
             self::$_new_records_to_write = array();
@@ -923,42 +914,12 @@ class MultiRecordEditingField extends FormField {
                 throw new Exception('Current user does not have permission to modify ');
             }
 
-            // Setup list to manipulate on $record based on the relation name.
-            /*$listOrDataObject = $record->$relationFieldName();
-            if ($listOrDataObject instanceof DataObject) 
-            {
-                // todo(Jake): Rewrite to use 'getMultiRecordEditingFieldList' function
-                $list = null;
-                if ($listOrDataObject instanceof WidgetArea) {
-                    // NOTE(Jake): WidgetArea is supported for native Elemental support.
-                    $list = $listOrDataObject->Widgets();
-                } else {
-                    throw new Exception('Cannot add multiple records to "'.$relationFieldName.'" as its not a WidgetArea or SS_List.');
-                }
-                foreach ($this->list as $r) 
-                {
-                    $list->push($r);
-                }
-            } 
-            else if (!$listOrDataObject instanceof SS_List) 
-            {
-                throw new Exception('Unable to work with relation field "'.$relationFieldName.'".');
-            }*/
-
             // Save existing items
             foreach (self::$_existing_records_to_write as $subRecord) 
             {
                 $subRecord->write();
             }
-
-
-            //Debug::dump($record);
-           // Debug::dump($record->ElementArea());
-            //Debug::dump($record->ElementArea()->getComponents('Widgets'));
-            //Debug::dump($this->list);
         }
-
-        //exit(__FUNCTION__);
     }
 
     /**
