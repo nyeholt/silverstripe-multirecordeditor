@@ -8,9 +8,15 @@ class MultiRecordEditingField extends FormField {
      * Invalid sort value. Value should be replaced by JavaScript on
      * new records without a sort value.
      *
-     * @var
+     * @var int
      */
     const SORT_INVALID = 0;
+
+    /**
+     * Enum for saveInto
+     */
+    const NEW_RECORD = 0;
+    const NEW_LIST = 1;
 
     /**
      * The list object passed into the object.
@@ -57,7 +63,7 @@ class MultiRecordEditingField extends FormField {
     /**
      * @var boolean
      */
-    protected $canAddInline = true; // todo(Jake): default to off for backwards compat
+    protected $canAddInline = true;
 
     /**
      * @var FieldList
@@ -437,41 +443,28 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
-     * @return null
-     */
-    /*public function editList($list)
-    {
-        if ($list) {
-            foreach ($list as $record) {
-                if ($record instanceof DataObjectInterface) {
-                    $this->addRecord($record);
-                }
-            }
-        }
-    }*/
-
-    /**
      * @return boolean
      */
     public function getCanSort() {
-        return (bool)$this->getSortFieldName();
+        return (!$this->isReadonly() && $this->getSortFieldName());
     }
 
     /**
      * @return FieldList|null
      */
     public function getRecordDataFields(DataObjectInterface $record) {
-        $fieldsMethod = 'getMultiEditFields';
-        if (!method_exists($record, 'getMultiEditFields')) {
-            // todo(Jake): Allow 'getMultiEditFields' by extension using 'hasMethod'
-            $fieldsMethod = 'getCMSFields';
+        $fieldsMethod = 'getCMSFields';
+        if (method_exists($record, 'getMultiEditFields') 
+            || (method_exists($record, 'hasMethod') && $record->hasMethod('getMultiEditFields'))) 
+        {
+            $fieldsMethod = 'getMultiEditFields';
         }
         $fields = $record->$fieldsMethod();
         $record->extend('updateMultiEditFields', $fields);
         $fields = $fields->dataFields();
         if (!$fields) {
-            throw new Exception('todo(Jake): handle this');
-            return $fields;
+            throw new Exception(__CLASS__.' is missing fields for record #'.$record->ID.' on class "'.$record->class.'"');
+            //return $fields;
         }
 
         // Setup sort field
@@ -517,21 +510,12 @@ class MultiRecordEditingField extends FormField {
 
         // Add heading field / Togglable composite field with heading
         $recordID = $this->getFieldID($record);
-        // todo(Jake): rename $tab to better name
-        $tab = MultiRecordEditingSubRecordField::create('MultiRecordEditingSubRecordField'.$recordID, $recordSectionTitle, null);
-        $tab->setParent($this);
-        $tab->setRecord($record);
-        /*$tab->setTemplate('MultiRecordEditingField_'.$tab->class);
-        if ($recordExists) {
-            $tab->setStartClosed(true);
-        } else {
-            $tab->setStartClosed(false);
-        }
-        $tab->Parent = $this;
-        $tab->MultiRecordEditingFieldRecord = $record;*/
+        $subRecordField = MultiRecordEditingSubRecordField::create('MultiRecordEditingSubRecordField'.$recordID, $recordSectionTitle, null);
+        $subRecordField->setParent($this);
+        $subRecordField->setRecord($record);
 
         // Modify sub-fields to work properly with this field
-        $currentFieldListModifying = $tab;
+        $currentFieldListModifying = $subRecordField;
         foreach ($fields as $field)
         {
             $fieldName = $field->getName();
@@ -592,40 +576,10 @@ class MultiRecordEditingField extends FormField {
         }
 
         $resultFieldList = new FieldList();
-        $resultFieldList->push($tab);
+        $resultFieldList->push($subRecordField);
         $resultFieldList->setForm($this->form);
         return $resultFieldList;
     }
-
-    /*public function addRecord(DataObjectInterface $record, $parentFields = null)
-    {
-        $fields = null;
-        if (!$record->canEdit()) {
-            return;
-        }
-        $this->list->push($record);
-
-        $fields = $this->getRecordDataFields($record);
-
-        foreach ($fields as $field) {
-            // if it looks like a multieditor field, let's skip for now.
-            if (strpos($field->getName(), '__') > 0) {
-                continue;
-            }
-
-            // re-write the name to the multirecordediting name for later retrieval.
-            // this cannot be done earlier as otherwise, fields that load data from the
-            // record won't be able to find the information they're expecting
-            $name = $this->getFieldName($field, $record);
-            $field->setName($name);
-
-            if ($tab) {
-                $tab->push($field);
-            }
-
-            $this->children->push($field);
-        }
-    }*/
 
     /**
      * @param FormField $field
@@ -765,17 +719,10 @@ class MultiRecordEditingField extends FormField {
                         if ($sortFieldName !== $fieldName && 
                             !isset($fields[$fieldName]))
                         {
-                            // todo(Jake): better error msg.
-                            throw new Exception('Missing field "'.$fieldName.'"');
+                            // todo(Jake): Say whether its missing the field from getCMSFields or getMultiRecordEditingFields or etc.
+                            throw new Exception('Missing field "'.$fieldName.'" from "'.$subRecord->class.'" fields based on data sent from client. (Could be a hack attempt)');
                         }
                         $field = $fields[$fieldName];
-                        /*if ($field instanceof FileField) 
-                        {
-                            Debug::dump($_FILES);
-                            Debug::dump($value);
-                            Debug::dump($field);
-                            
-                        }*/
                         $field->setValue($value);
                         $field->saveInto($subRecord);
                     }
@@ -802,24 +749,19 @@ class MultiRecordEditingField extends FormField {
                     
                     if (!$subRecord->doValidate())
                     {
-                        // todo(Jake): better error msg.
-                        throw new ValidationException('Failed validation');
+                        throw new ValidationException('Failed validation on '.$subRecord->class.'::doValidate() on record #'.$subRecord->ID);
                     }
 
                     if ($subRecord->exists()) {
                         self::$_existing_records_to_write[] = $subRecord;
                     } else {
-                        // Add to the list
-                        self::$_new_records_to_write[] = $subRecord;
-                        if ($list instanceof UnsavedRelationList 
-                            || $list instanceof RelationList) // ie. HasManyList/ManyManyList
-                        {
-                            $list->add($subRecord);
-                        }
-                        else 
-                        {
-                            throw new Exception('Unsupported SS_List type "'.$list->class.'"');
-                        }
+                        // NOTE(Jake): I used to directly add the record to the list here, but
+                        //             if it's a HasManyList/ManyManyList, it will create the record
+                        //             before doing permission checks.
+                        self::$_new_records_to_write[] = array(
+                            self::NEW_RECORD => $subRecord,
+                            self::NEW_LIST   => $list,
+                        );
                     }
                 }
             }
@@ -906,13 +848,14 @@ class MultiRecordEditingField extends FormField {
             //
             // Check permissions on everything at once
             //
-            $canModifyAll = true;
-            foreach (self::$_new_records_to_write as $subRecord) 
+            $recordsPermissionUnable = array();
+            foreach (self::$_new_records_to_write as $subRecordAndList) 
             {
+                $subRecord = $subRecordAndList[self::NEW_RECORD];
                 // Check each new record to see if you can create them
                 if (!$subRecord->canCreate()) 
                 {
-                    $canModifyAll = false;
+                    $recordsPermissionUnable['canCreate'][$subRecord->class][$subRecord->ID] = true;
                 }
             }
             foreach (self::$_existing_records_to_write as $subRecord) 
@@ -920,13 +863,52 @@ class MultiRecordEditingField extends FormField {
                 // Check each existing record to see if you can edit them
                 if (!$subRecord->canEdit())
                 {
-                    $canModifyAll = false;
+                    $recordsPermissionUnable['canEdit'][$subRecord->class][$subRecord->ID] = true;
                 }
             }
-            if (!$canModifyAll)
+            if ($recordsPermissionUnable)
             {
-                // todo(Jake): better error message, check each class?
-                throw new Exception('Current user does not have permission to modify ');
+                /**
+                 * Output a nice exception/error message telling you exactly what records/classes
+                 * the permissions failed on. 
+                 *
+                 * eg.
+                 * Current member #7 does not have permission.
+                 *
+                 * Unable to "canCreate" records: 
+                 * - ElementGallery (26)
+                 *
+                 * Unable to "canEdit" records: 
+                 * - ElementGallery (24,23,22)
+                 * - ElementGallery_Item (16,23,17,18,19,20,22,21)
+                 */
+                $message = '';
+                foreach ($recordsPermissionUnable as $permissionFunction => $classAndID)
+                {
+                    $message .= "\n".'Unable to "'.$permissionFunction.'" records: '."\n";
+                    foreach ($classAndID as $class => $idAsKeys)
+                    {
+                        $message .= '- '.$class.' ('.implode(',', array_keys($idAsKeys)).')'."\n";
+                    }
+                }
+                throw new Exception('Current member #'.Member::currentUserID().' does not have permission.'."\n".$message);
+            }
+
+            // Add new records into the appropriate list
+            // NOTE(Jake): Adding an empty record into an existing ManyManyList/HasManyList creates that record.
+            foreach (self::$_new_records_to_write as $subRecordAndList) 
+            {
+                $list = $subRecordAndList[self::NEW_LIST];
+                if ($list instanceof UnsavedRelationList 
+                    || $list instanceof RelationList) // ie. HasManyList/ManyManyList
+                {
+                    $subRecord = $subRecordAndList[self::NEW_RECORD];
+                    $list->add($subRecord);
+                }
+                else 
+                {
+                    throw new Exception('Unsupported SS_List type "'.$list->class.'"');
+                }
             }
 
             // Save existing items
@@ -948,12 +930,10 @@ class MultiRecordEditingField extends FormField {
      * @return FieldList
      */
     public function Actions() {
-        // todo(Jake): move to constructor and remove fields if no inline editing
         $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
         $modelFirstClass = key($modelClasses);
 
         $fields = FieldList::create();
-        //$fields->unshift(LiteralField::create($this->getName().'_clearfix', '<div class="clear"><!-- --></div>'));
         $fields->unshift($inlineAddButton = FormAction::create($this->getName().'_addinlinerecord', 'Add')
                             ->addExtraClass('js-multirecordediting-add-inline')
                             ->setUseButtonTag(true));
@@ -1004,11 +984,10 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
-     *
+     * @return string
      */
     public function getSortFieldName() {
         if ($this->sortFieldName) {
-            // todo(Jake): add setSortFieldName
             return $this->sortFieldName;
         }
 
@@ -1022,12 +1001,20 @@ class MultiRecordEditingField extends FormField {
 
         $sort = static::sort_string_to_array($sort);
         $sort = key($sort);
-        $sort = str_replace('"', '', $sort); // Strip " as some modules use them for 'default_sort'
+        $sort = str_replace(array('"', '\'', '`'), '', $sort); // Strip quotes as core and some modules use them for 'default_sort'
         if (strpos($sort, '.') !== FALSE) {
             throw new Exception('Cannot use relational sort field with '.__CLASS__.', default_sort config for "'.$baseClass.'" is incompatible.');
         }
 
         return $sort;
+    }
+
+    /**
+     * @return MultiRecordEditingField
+     */
+    public function setSortFieldName($name) {
+        $this->sortFieldName = $name;
+        return $this;
     }
 
     /**
@@ -1116,7 +1103,6 @@ class MultiRecordEditingField extends FormField {
                 $recordFields = $this->getRecordDataFields($record);
                 // Re-write field names to be unique
                 // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
-                // todo(Jake): put these into a function
                 foreach ($recordFields->dataFields() as $field)
                 {
                     $name = $this->getFieldName($field, $record);

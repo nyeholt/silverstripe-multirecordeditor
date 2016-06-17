@@ -40,6 +40,27 @@
 		// Sort
 		//
 
+		function getIDTree(element) {
+			//
+			// Prepare the variables to replace in deeply nested field names, ie.
+			// ie. ElementArea__MultiRecordEditingField__ElementGallery__o-multirecordediting-1-id__Images__MultiRecordEditingField__ElementGallery_Item__o-multirecordediting-2-id__Items__MultiRecordEditingField__ElementGallery_Item_Item__o-multirecordediting-3-id__Name
+			// -becomes:-
+			// ElementArea__MultiRecordEditingField__ElementGallery__new_1__Images__MultiRecordEditingField__ElementGallery_Item__new_1__Items__MultiRecordEditingField__ElementGallery_Item_Item__new_1__Name
+			//
+			var renderTree = [];
+			var $parents = $(element).parents('.js-multirecordediting-list-item');
+			for (var i = $parents.length - 1; i >= 0; --i)
+			{
+				// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
+				var $it = $($parents[i]);
+				var subID = $it.data('id');
+				renderTree.push({ 
+					id: subID,
+				});
+			}
+			return renderTree;
+		}
+
 		// Pass in '.js-multirecordediting-list' and it'll update the sort value to match
 		// the order of elements.
 		function sortUpdate($list) {
@@ -94,11 +115,6 @@
 			}
 		});
 
-		// todo(jake): remove if unused
-		$.ajaxPrefilter(function(options, originalOptions, jqXHR) {
-			console.log(options.url);
-		});
-
 		// Replace o-multirecordediting-* template variable with value when
 		// the <input type="hidden"> tag is created after a file is selected/uploaded
 		$('.ss-uploadfield-item-info input').entwine({
@@ -107,17 +123,7 @@
 				var name = this.attr('name');
 				if (name && name.indexOf('o-multirecordediting') > -1)
 				{
-					var renderTree = [];
-					var $parents = $(this).parents('.js-multirecordediting-list-item');
-					for (var i = $parents.length - 1; i >= 0; --i)
-					{
-						// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
-						var $it = $($parents[i]);
-						var subID = $it.data('id');
-						renderTree.push({ 
-							id: subID,
-						});
-					}
+					var renderTree = getIDTree(this);
 					var newName = renderString(name, renderTree);
 					if (newName !== name)
 					{
@@ -150,7 +156,7 @@
 
 				if (!className)
 				{
-					alert('Please select an item.');
+					alert('Please select a class.');
 					return;
 				}
 
@@ -159,25 +165,7 @@
 					var num = $self.data('add-inline-num') || 1;
 					var depth = $self.data('depth');
 
-					//
-					// Prepare the variables to replace in deeply nested field names, ie.
-					// ie. ElementArea__MultiRecordEditingField__ElementGallery__o-multirecordediting-1-id__Images__MultiRecordEditingField__ElementGallery_Item__o-multirecordediting-2-id__Items__MultiRecordEditingField__ElementGallery_Item_Item__o-multirecordediting-3-id__Name
-					// -becomes:-
-					// ElementArea__MultiRecordEditingField__ElementGallery__new_1__Images__MultiRecordEditingField__ElementGallery_Item__new_1__Items__MultiRecordEditingField__ElementGallery_Item_Item__new_1__Name
-					//
-					var renderTree = [];
-					var $parents = $self.parents('.js-multirecordediting-list-item');
-					for (var i = $parents.length - 1; i >= 0; --i)
-					{
-						// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
-						var $it = $($parents[i]);
-						var subID = $it.data('id');
-						var idParts = subID.toString().split('_');
-						var sort = (idParts.length >= 2) ? idParts[1] : 0; // if subID = 'new_3', then sort = 3. If subID = '10', then don't bother with sort as its already set (ie. make it 0, who cares)
-						renderTree.push({ 
-							id: subID,
-						});
-					}
+					var renderTree = getIDTree($self);
 					renderTree.push({ 
 						id: 'new_'+num,
 					});
