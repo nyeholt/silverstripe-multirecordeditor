@@ -41,6 +41,11 @@ class MultiRecordEditingField extends FormField {
      */
     protected $useToggles = true;
 
+    /** 
+     * @var boolean
+     */
+    protected $preparedForRender = false;
+
     /**
      * @var boolean
      */
@@ -99,8 +104,6 @@ class MultiRecordEditingField extends FormField {
         parent::__construct($name, $title);
 
         $this->children = FieldList::create();
-
-        $this->tabs = FieldList::create();
         $this->list = $list;
 
         /*if ($recordList) 
@@ -118,7 +121,6 @@ class MultiRecordEditingField extends FormField {
     public function handleAddInline(SS_HTTPRequest $request) {
         // Force reset
         $this->children = FieldList::create();
-        $this->tabs = FieldList::create();
 
         // Get passed arguments
         // todo(Jake): Change '->remaining' to '->shift(4)' and test.
@@ -202,7 +204,7 @@ class MultiRecordEditingField extends FormField {
         }
 
         // Allow fields to render, 
-        $this->tabs = $fields;
+        $this->children = $fields;
 
         return $this->renderWith(array('MultiRecordEditingField_addinline'));
     }
@@ -963,9 +965,6 @@ class MultiRecordEditingField extends FormField {
      * @return FieldList
      */
     public function Fields() {
-        if ($this->getUseToggles()) {
-            return $this->tabs;
-        }
         return $this->children;
     }
 
@@ -1017,12 +1016,7 @@ class MultiRecordEditingField extends FormField {
         {
             $resultField->$property = $value;
         }
-        return $resultField;
-        //$resultField->readonly = true;
-        foreach ($resultField->children as $field)
-        {
-            $resultField->children->replaceField($field->getName(), $field->performReadonlyTransformation());
-        }
+        $resultField->readonly = true;
         return $resultField;
     }
 
@@ -1121,42 +1115,53 @@ class MultiRecordEditingField extends FormField {
         return array($column, $direction);
     }
 
-    public function FieldHolder($properties = array()) {
-        // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
-        //             Requirements::javascript on-the-fly.
-        $readonly = $this->isReadonly();
-        if (!$readonly)
+    /**
+     * Prepares everything just before rendering the field
+     */
+    protected function prepareForRender() {
+        if (!$this->preparedForRender) 
         {
-            Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
-            Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
-            Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
-            Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
-            Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
-            Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
-        }
+            $this->preparedForRender = true;
+            $readonly = $this->isReadonly();
+            if (!$readonly)
+            {
+                // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
+                //             Requirements::javascript on-the-fly.
+                Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
+                Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
+                Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
+                Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
+                Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
+                Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
+            }
 
-        foreach ($this->list as $record) 
-        {
-            $recordFields = $this->getRecordDataFields($record);
-            // Re-write field names to be unique
-            // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
-            // todo(Jake): put these into a function
-            foreach ($recordFields->dataFields() as $field)
+            foreach ($this->list as $record)
             {
-                $name = $this->getFieldName($field, $record);
-                $field->setName($name);
-            }
-            foreach ($recordFields as $field)
-            {
-                if ($field instanceof MultiRecordEditingSubRecordField) {
-                    $field->setName($this->getFieldName($field, $record));
+                $recordFields = $this->getRecordDataFields($record);
+                // Re-write field names to be unique
+                // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
+                // todo(Jake): put these into a function
+                foreach ($recordFields->dataFields() as $field)
+                {
+                    $name = $this->getFieldName($field, $record);
+                    $field->setName($name);
                 }
-                $this->tabs->push($field);
+                foreach ($recordFields as $field)
+                {
+                    if ($field instanceof MultiRecordEditingSubRecordField) {
+                        $field->setName($this->getFieldName($field, $record));
+                    }
+                    if ($readonly) {
+                        $field = $field->performReadonlyTransformation();
+                    }
+                    $this->children->push($field);
+                }
             }
         }
-        
-        // Expose tabs to the template (as it's protected)
-        //$properties['Tabs'] = $this->tabs; // todo(jake): remove no longer needed?
+    }
+
+    public function FieldHolder($properties = array()) {
+        $this->prepareForRender();
         return parent::FieldHolder($properties);
     }
 }

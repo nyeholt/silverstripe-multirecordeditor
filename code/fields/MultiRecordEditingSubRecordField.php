@@ -74,7 +74,7 @@ class MultiRecordEditingSubRecordField extends CompositeField {
      * @return boolean
      */
     public function getCanSort() {
-        return $this->parent->getCanSort();
+        return (!$this->isReadonly() && $this->parent->getCanSort());
     }
 
     /**
@@ -158,12 +158,4 @@ class MultiRecordEditingSubRecordField extends CompositeField {
 
 class MultiRecordEditingSubRecordField_Readonly extends MultiRecordEditingSubRecordField {
     protected $readonly = true;
-
-    public function FieldHolder($properties = array()) {
-        return CompositeField::FieldHolder($properties);
-    }
-
-    public function Field($properties = array()) {
-        return CompositeField::Field($properties);
-    }
 }
