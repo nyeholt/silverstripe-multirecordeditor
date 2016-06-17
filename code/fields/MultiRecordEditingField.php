@@ -5,6 +5,14 @@
  */
 class MultiRecordEditingField extends FormField {
     /**
+     * Invalid sort value. Value should be replaced by JavaScript on
+     * new records without a sort value.
+     *
+     * @var
+     */
+    const SORT_INVALID = 0;
+
+    /**
      * The list object passed into the object.
      * 
      * @var SS_List
@@ -477,7 +485,7 @@ class MultiRecordEditingField extends FormField {
             }
             if (!$sortField)
             {
-                $sortValue = ($record && $record->exists()) ? $record->$sortFieldName : 'o-multirecordediting-'.$this->depth.'-sort';
+                $sortValue = ($record && $record->exists()) ? $record->$sortFieldName : self::SORT_INVALID;
                 $sortField = HiddenField::create($sortFieldName);
                 if ($sortField instanceof HiddenField) {
                     $sortField->setAttribute('value', $sortValue);
@@ -783,6 +791,13 @@ class MultiRecordEditingField extends FormField {
                         {
                             $subRecord->{$sortFieldName} = $sortValue;
                         }
+                    }
+
+                    // Check if sort value is invalid
+                    $sortValue = $subRecord->{$sortFieldName};
+                    if ($sortValue <= 0)
+                    {
+                        throw new ValidationException('Invalid sort value ('.$sortValue.') on #'.$subRecord->ID.' for class '.$subRecord->class.'. Sort value must be greater than 0.');
                     }
                     
                     if (!$subRecord->doValidate())

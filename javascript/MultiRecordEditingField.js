@@ -39,6 +39,19 @@
 		//
 		// Sort
 		//
+
+		// Pass in '.js-multirecordediting-list' and it'll update the sort value to match
+		// the order of elements.
+		function sortUpdate($list) {
+			$list.children().each(function(index) {
+				var sortValue = index + 1;
+				// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
+				//			   sort fields in nested MultiRecordEditingField's.
+				var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
+				$sortField.val(sortValue.toString());
+			});
+		}
+
 		var isSorting = false;
 		$('.js-multirecordediting-list-item').entwine({
 			onadd: function() {
@@ -67,7 +80,7 @@
 				}
 
 				function stop(e) {
-					self.sortupdate();
+					sortUpdate(self.parent());
 				}
 
 				this.parent().sortable({
@@ -78,18 +91,6 @@
 					update: update,
 					stop: stop
 				});
-			},
-			onsortupdate: function() {
-				this.parent().children().each(function(index) {
-					var sortValue = index + 1;
-					// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
-					//			   sort fields in nested MultiRecordEditingField's.
-					var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
-					$sortField.val(sortValue.toString());
-				});
-			},
-			onnextsort: function() {
-				return this.parent().children().length + 1;
 			}
 		});
 
@@ -175,12 +176,10 @@
 						var sort = (idParts.length >= 2) ? idParts[1] : 0; // if subID = 'new_3', then sort = 3. If subID = '10', then don't bother with sort as its already set (ie. make it 0, who cares)
 						renderTree.push({ 
 							id: subID,
-							sort: sort,
 						});
 					}
 					renderTree.push({ 
 						id: 'new_'+num,
-						sort: num,
 					});
 
 					// Find field container ('js-multirecordediting-field') and add HTML
@@ -188,6 +187,7 @@
 					var $field = $self.parents('.js-multirecordediting-field').first();
 					var $fieldList = $field.find('.js-multirecordediting-list').first();
 					$fieldList.append(renderTemplate(className, renderTree));
+					sortUpdate($fieldList);
 
 					$self.data('add-inline-num', num + 1);
 				});
