@@ -26,6 +26,21 @@ class MultiRecordEditingField extends FormField {
     protected $list;
 
     /**
+     * Override the field function to call on the record.
+     *
+     * @var function|string
+     */
+    protected $fieldsFunction = '';
+
+    /**
+     * Whether to fallback on 'getDefaultFieldsFunction' if the $fieldsFunction
+     * is a string and doesn't exist on the record.
+     *
+     * @var boolean
+     */
+    protected $fieldsFunctionFallback = false;
+
+    /**
      * Class name of the DataObject that the GridField will display.
      *
      * Defaults to the value of $this->list->dataClass.
@@ -81,37 +96,6 @@ class MultiRecordEditingField extends FormField {
      * @var int
      */
     protected $depth = 1;
-
-    /**
-     * The MultiRecordEditingField this field belongs to. (If any)
-     *
-     * @var null|MultiRecordEditingField
-     */
-    //protected $multiRecordEditingParent;
-
-    /**
-     * @config
-     * @var array
-     */
-    /*private static $allowed_actions = array(
-        //'handleAddInline',
-        'httpSubmission'
-    );*/
-
-    /**
-     * @var array
-     */
-
-    /*private static $url_handlers = array(
-        // ie. addinlinerecord/$ClassName/$SubFieldName/$SubAction/$SubSubFieldName/$SubSubAction
-        //'addinlinerecord/$ClassName' => 'handleAddInline',
-        'POST ' => 'httpSubmission',
-        'GET ' => 'httpSubmission',
-        'HEAD ' => 'httpSubmission',
-        //'addinlinerecord/' => 'handleAddInline',
-        //'addinlinerecord/$ClassName' => 'handleAddInline',
-        //'addinlinerecord/$ClassName/$SubFieldName/$SubAction' => 'handleFieldAction',
-    );*/
 
     public function __construct($name, $title = null, SS_List $list = null)
     {
@@ -450,21 +434,89 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
+     * Get the default function to call on the record if
+     * $this->fieldsFunction isn't set.
+     * 
+     * @return string
+     */
+    public function getDefaultFieldsFunction(DataObjectInterface $record) {
+        if (method_exists($record, 'getMultiRecordFields') 
+            || (method_exists($record, 'hasMethod') && $record->hasMethod('getMultiRecordFields'))) 
+        {
+            return 'getMultiRecordFields';
+        }
+        else
+        {
+            return 'getCMSFields';
+        }
+    }
+
+    /**
+     * Get closure or string of the function to call for getting record
+     * fields.
+     * 
+     * @return function|string
+     */
+    public function getFieldsFunction() {
+        return $this->fieldsFunction;
+    }
+
+    /**
+     * If string, then set the method to call on the record to get fields.
+     * If closure, then call the method for the fields with $record as the first parameter.
+     *
+     * @return MultiRecordEditingField
+     */
+    public function setFieldsFunction($functionOrFunctionName, $fallback = false) {
+        $this->fieldsFunction = $functionOrFunctionName;
+        $this->fieldsFunctionFallback = $fallback;
+        return $this;
+    }
+
+    /**
      * @return FieldList|null
      */
     public function getRecordDataFields(DataObjectInterface $record) {
-        $fieldsMethod = 'getCMSFields';
-        if (method_exists($record, 'getMultiEditFields') 
-            || (method_exists($record, 'hasMethod') && $record->hasMethod('getMultiEditFields'))) 
+        $fieldsFunction = $this->getFieldsFunction();
+        if (!$fieldsFunction)
         {
-            $fieldsMethod = 'getMultiEditFields';
+            $fieldsFunction = $this->getDefaultFieldsFunction($record);
         }
-        $fields = $record->$fieldsMethod();
+
+        $fields = null;
+        if (is_callable($fieldsFunction)) 
+        {
+            $fields = $fieldsFunction($record);
+        } 
+        else
+        {
+            if (method_exists($record, $fieldsFunction) 
+                || (method_exists($record, 'hasMethod') && $record->hasMethod($fieldsFunction))) 
+            {
+                $fields = $record->$fieldsFunction();
+            }
+            else if ($this->fieldsFunctionFallback)
+            {
+                $fieldsFunction = $this->getDefaultFieldsFunction($record);
+                $fields = $record->$fieldsFunction();
+            }
+            else
+            {
+                throw new Exception($record->class.'::'.$fieldsFunction.' function does not exist.');
+            }
+        } 
+        if (!$fields || !$fields instanceof FieldList)
+        {
+            throw new Exception('Function callback on '.__CLASS__.' must return a FieldList.');
+        }
         $record->extend('updateMultiEditFields', $fields);
         $fields = $fields->dataFields();
         if (!$fields) {
-            throw new Exception(__CLASS__.' is missing fields for record #'.$record->ID.' on class "'.$record->class.'"');
-            //return $fields;
+            $errorMessage = __CLASS__.' is missing fields for record #'.$record->ID.' on class "'.$record->class.'".';
+            if (is_callable($fieldsFunction)) {
+                throw new Exception($errorMessage.'. This is due to the closure set with "setFieldsFunction" not returning a populated FieldList.');
+            }
+            throw new Exception($errorMessage.'. This is due '.$record->class.'::'.$fieldsFunction.' not returning a populated FieldList.');
         }
 
         // Setup sort field
@@ -474,7 +526,7 @@ class MultiRecordEditingField extends FormField {
             $sortField = isset($fields[$sortFieldName]) ? $fields[$sortFieldName] : null;
             if ($sortField && !$sortField instanceof HiddenField)
             {
-                throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form. Suggestion: $fields->removeByName("'.$sortFieldName.'") in '.$record->class.'::'.$fieldsMethod.'().');
+                throw new Exception('Cannot utilize drag and drop sort functionality if the sort field is explicitly used on form. Suggestion: $fields->removeByName("'.$sortFieldName.'") in '.$record->class.'::'.$fieldsFunction.'().');
             }
             if (!$sortField)
             {
@@ -538,6 +590,7 @@ class MultiRecordEditingField extends FormField {
                 $field->depth = $this->depth + 1;
                 $action = $this->getActionName($field, $record);
                 $field->setAttribute('data-action', $action);
+                $field->setFieldsFunction($this->getFieldsFunction(), $this->fieldsFunctionFallback);
             }
             else
             {
@@ -649,7 +702,6 @@ class MultiRecordEditingField extends FormField {
             }
 
             $list = $this->list;
-            //$dataClass = $list->dataClass();
             $flatList = array();
             if ($list instanceof DataList) 
             {
@@ -692,10 +744,6 @@ class MultiRecordEditingField extends FormField {
 
                         // New record
                         $subRecord = $class::create();
-
-                        // maybetodo(Jake): if performance is sluggish, make any new records share
-                        //             the same fields as they should all output the same.
-                        //             (ie. record->ID == 0 to cache fields)
                     }
                     else
                     {
@@ -708,6 +756,9 @@ class MultiRecordEditingField extends FormField {
                         $subRecord = $flatList[$id];
                     }
 
+                    // maybetodo(Jake): if performance is sluggish, make any new records share
+                    //             the same fields as they should all output the same.
+                    //             (ie. record->ID == 0 to cache fields)
                     $fields = $this->getRecordDataFields($subRecord);
                     $fields = $fields->dataFields();
                     if (!$fields) {
@@ -847,6 +898,7 @@ class MultiRecordEditingField extends FormField {
 
             //
             // Check permissions on everything at once
+            // (includes records added in nested MultiRecordEditingField)
             //
             $recordsPermissionUnable = array();
             foreach (self::$_new_records_to_write as $subRecordAndList) 
@@ -895,7 +947,6 @@ class MultiRecordEditingField extends FormField {
             }
 
             // Add new records into the appropriate list
-            // NOTE(Jake): Adding an empty record into an existing ManyManyList/HasManyList creates that record.
             foreach (self::$_new_records_to_write as $subRecordAndList) 
             {
                 $list = $subRecordAndList[self::NEW_LIST];
@@ -903,6 +954,7 @@ class MultiRecordEditingField extends FormField {
                     || $list instanceof RelationList) // ie. HasManyList/ManyManyList
                 {
                     $subRecord = $subRecordAndList[self::NEW_RECORD];
+                    // NOTE(Jake): Adding an empty record into an existing ManyManyList/HasManyList -seems- to create that record.
                     $list->add($subRecord);
                 }
                 else 
@@ -930,10 +982,14 @@ class MultiRecordEditingField extends FormField {
      * @return FieldList
      */
     public function Actions() {
+        $fields = FieldList::create();
+        if (!$this->getCanAddInline())
+        {
+            return $fields;
+        }
+
         $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
         $modelFirstClass = key($modelClasses);
-
-        $fields = FieldList::create();
         $fields->unshift($inlineAddButton = FormAction::create($this->getName().'_addinlinerecord', 'Add')
                             ->addExtraClass('js-multirecordediting-add-inline')
                             ->setUseButtonTag(true));

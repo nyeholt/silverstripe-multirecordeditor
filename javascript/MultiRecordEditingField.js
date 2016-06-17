@@ -156,7 +156,7 @@
 
 				if (!className)
 				{
-					alert('Please select a class.');
+					alert('Please select a section type.');
 					return;
 				}
 
