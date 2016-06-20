@@ -133,14 +133,6 @@ class MultiRecordEditingField extends FormField {
 
         $this->children = FieldList::create();
         $this->list = $list;
-
-        /*if ($recordList) 
-        {
-            foreach ($recordList as $record) 
-            {
-                $this->addRecord($record);
-            }
-        }*/
     }
 
     /**
@@ -253,6 +245,8 @@ class MultiRecordEditingField extends FormField {
             }
             // NOTE(Jake): Consume all remaining parts so that 'RequestHandler::handleRequest'
             //             doesn't hit an error. (Use Case: Getting an error with a GridField::handleRequest)
+            // NOTE(Jake): THis is probably due to just CLASSNAME not being consumed/shifted in 'addinlinerecord'
+            //             but cbf changing and re-testing everything.
             $dirParts = explode('/', $request->remaining());
             foreach ($dirParts as $dirPart)
             {
@@ -264,18 +258,6 @@ class MultiRecordEditingField extends FormField {
         $result = parent::handleRequest($request, $model);
         return $result;
     }
-
-    /**
-     * Set a height for html editor fields
-     *
-     * @param int $value
-     * @return \MultiRecordEditingField
-     */
-    /*public function setHtmlEditorHeight($value)
-    {
-        $this->htmlEditorHeight = $value;
-        return $this;
-    }*/
 
     /**
      * @param boolean $value
@@ -681,7 +663,7 @@ class MultiRecordEditingField extends FormField {
                     $field->multiRecordEditingFieldAction = $action;
 
                     // Fix $field->Value()
-                    if (!$val && isset($record->{$fieldName.'ID'}))
+                    if ($recordExists && !$val && isset($record->{$fieldName.'ID'}))
                     {
                         // NOTE(Jake): This check was added for 'FileAttachmentField'.
                         //             Putting this outside of this if-statement will break UploadField.
@@ -1273,17 +1255,28 @@ class MultiRecordEditingField extends FormField {
         {
             $this->preparedForRender = true;
             $readonly = $this->isReadonly();
-            if (!$readonly)
+            if (!$readonly && $this->depth == 1)
             {
                 // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
                 //             Requirements::javascript on-the-fly.
+                //Requirements::javascript(FRAMEWORK_DIR . "/thirdparty/jquery/jquery.js");
                 Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
                 Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
                 Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
                 Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
                 Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
                 Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
+
+                // If config is set to 'default' but 'default' isn't configured, fallback to 'cms'.
+                // NOTE(Jake): In SS 3.2, 'default' is the default active config but its not configured.
+                $availableConfigs = HtmlEditorConfig::get_available_configs_map();
+                $activeIdentifier = HtmlEditorConfig::get_active_identifier();
+                if ($activeIdentifier === 'default' && !isset($availableConfigs[$activeIdentifier]))
+                {
+                    HtmlEditorConfig::set_active('cms');
+                }
             }
+
 
             foreach ($this->list as $record)
             {
@@ -1317,4 +1310,15 @@ class MultiRecordEditingField extends FormField {
 
 class MultiRecordEditingField_Readonly extends MultiRecordEditingField {
     protected $readonly = true;
+
+    public function handleRequest(SS_HTTPRequest $request, DataModel $model) {
+        return null;
+    }
+
+    /**
+     * @return FieldList
+     */
+    public function Actions() {
+        return new FieldList();
+    }
 }

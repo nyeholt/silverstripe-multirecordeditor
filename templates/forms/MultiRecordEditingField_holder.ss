@@ -1,7 +1,7 @@
 <%-- todo(jake): add nice classes here --%>
 <div class="field {$ExtraClass} <% if not $isReadonly %>js-multirecordediting-field<% end_if %>">
 	<div class="clear"></div>
-	<% if not $isReadonly %>
+	<% if $Actions %>
 		<div>
 			$Actions
 		</div>
