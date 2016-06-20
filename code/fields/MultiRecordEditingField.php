@@ -13,10 +13,18 @@ class MultiRecordEditingField extends FormField {
     const SORT_INVALID = 0;
 
     /**
-     * Enum for saveInto
+     * Structure for when 'saveInto' is tracking
+     * new records that need to be saved.
      */
     const NEW_RECORD = 0;
     const NEW_LIST = 1;
+
+    /**
+     * For tracking field (sent/expanded names) and values in
+     * 'saveInto'
+     */
+    const FIELD_NAME = 0;
+    const FIELD_VALUE = 1;
 
     /**
      * Set variables or call functions on certain fields underneath this field.
@@ -178,9 +186,9 @@ class MultiRecordEditingField extends FormField {
                 return $this->httpError(400, 'Malformed record ID in sub-field action was supplied ('.$class.' #'.$recordIDOrNew.').');
             }
             $record = $class::get()->byID($recordIDOrNew);
-            if (!$record->canView())
+            if (!$record->canEdit())
             {
-                return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot view "'.$class.'" #'.$recordIDOrNew.' class type.');
+                return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot edit "'.$class.'" #'.$recordIDOrNew.' class type.');
             }
         }
 
@@ -616,13 +624,6 @@ class MultiRecordEditingField extends FormField {
                 {
                     $val = $record->__get($fieldName);
                 }
-                // NOTE(Jake): breaks UploadField, put this udner FileAttachmentField
-                /*if (!$val && isset($record->{$fieldName.'ID'}))
-                {
-                    // NOTE(Jake): This check was added for 'FileAttachmentField', not sure if any other FormField
-                    //             items need this check.
-                    $val = $record->__get($fieldName.'ID');
-                }*/
                 // NOTE(Jake): Some fields like 'CheckboxSetField' require the DataObject/record as the 2nd parameter
                 $field->setValue($val, $record);
             }
@@ -678,6 +679,18 @@ class MultiRecordEditingField extends FormField {
                     $action = $this->getActionName($field, $record);
                     $field = MultiRecordEditingFileAttachmentField::cast($field);
                     $field->multiRecordEditingFieldAction = $action;
+
+                    // Fix $field->Value()
+                    if (!$val && isset($record->{$fieldName.'ID'}))
+                    {
+                        // NOTE(Jake): This check was added for 'FileAttachmentField'.
+                        //             Putting this outside of this if-statement will break UploadField.
+                        $val = $record->__get($fieldName.'ID');
+                        if ($val)
+                        {
+                            $field->setValue($val, $record);
+                        }
+                    }
                 }
                 // NOTE(Jake): Should probably add an ->extend() so other modules can monkey patch fields.
                 //             Will wait to see if its needed.
@@ -742,9 +755,9 @@ class MultiRecordEditingField extends FormField {
      * @param DataObject $record
      * @return string
      */
-    protected function getFieldName($field, $record)
+    protected function getFieldName($fieldOrFieldname, $record)
     {
-        $name = $field instanceof FormField ? $field->getName() : $field;
+        $name = $fieldOrFieldname instanceof FormField ? $fieldOrFieldname->getName() : $fieldOrFieldname;
         $recordID = $this->getFieldID($record);
 
         return sprintf(
@@ -829,7 +842,7 @@ class MultiRecordEditingField extends FormField {
                     }
 
                     //
-                    foreach ($subRecordData as $fieldName => $value)
+                    foreach ($subRecordData as $fieldName => $fieldData)
                     {
                         if ($sortFieldName !== $fieldName && 
                             !isset($fields[$fieldName]))
@@ -838,8 +851,35 @@ class MultiRecordEditingField extends FormField {
                             throw new Exception('Missing field "'.$fieldName.'" from "'.$subRecord->class.'" fields based on data sent from client. (Could be a hack attempt)');
                         }
                         $field = $fields[$fieldName];
+                        if (!$field instanceof MultiRecordEditingField)
+                        {
+                            $value = $fieldData[self::FIELD_VALUE];
+                        }
+                        else
+                        {
+                            $value = $fieldData;
+                        }
+                        // NOTE(Jake): Added for FileAttachmentField as it uses the name used in the request for 
+                        //             file deletion.
+                        $field->MultiRecordEditing_Name = $this->getFieldName($field->getName(), $subRecord);
                         $field->setValue($value);
+                        // todo(Jake): Some field types (ie. UploadField/FileAttachmentField) directly modify the record
+                        //             on 'saveInto', meaning people -could- circumvent certain permission checks
+                        //             potentially. Must test this or defer extensions of 'FileField' to 'saveInto' later.
                         $field->saveInto($subRecord);
+                        $field->MultiRecordEditingField_SavedInto = true;
+                    }
+
+                    // NOTE(Jake): FileAttachmentField uses a hack for deleting records, meaning sometimes
+                    //             saveInto() won't be called due to the structure of the SS_HTTPRequest postVar name.
+                    foreach ($fields as $fieldName => $field)
+                    {
+                        if ($field instanceof FileAttachmentField && !$field->MultiRecordEditingField_SavedInto)
+                        {
+                            $field->MultiRecordEditing_Name = $this->getFieldName($field->getName(), $subRecord);
+                            $field->saveInto($subRecord);
+                            $field->MultiRecordEditingField_SavedInto = true;
+                        }
                     }
 
                     // Handle sort if its not manually handled on the form
@@ -923,7 +963,10 @@ class MultiRecordEditingField extends FormField {
                     if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
                     {
                         // 1st Nest Level
-                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $value;
+                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = array(
+                            self::FIELD_NAME => $name,
+                            self::FIELD_VALUE => $value
+                        ); 
                     }
                     else
                     {
@@ -941,7 +984,10 @@ class MultiRecordEditingField extends FormField {
                             }
                             $relationArray = &$relationArray[$parentFieldName][$class][$new_id];
                         }
-                        $relationArray[$fieldName] = $value; 
+                        $relationArray[$fieldName] = array(
+                            self::FIELD_NAME => $name,
+                            self::FIELD_VALUE => $value
+                        ); 
                         unset($relationArray);
                     }
                 }
@@ -953,6 +999,8 @@ class MultiRecordEditingField extends FormField {
             // Save all fields, including nested MultiRecordEditingField's
             self::$_new_records_to_write = array();
             self::$_existing_records_to_write = array();
+            $this->MultiRecordEditing_Name = $this->getName();
+
             foreach ($relation_class_id_field as $relation => $class_id_field)
             {
                 $this->setValue($class_id_field);
