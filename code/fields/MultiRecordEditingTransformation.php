@@ -10,6 +10,8 @@ class MultiRecordEditingTransformation extends FormTransformation {
 		$list = $field->getList();
 		$config = $field->getConfig();
 		$result = MultiRecordEditingField::create($field->getName(), $title, $list);
+		
+		// Support: GridFieldExtensions (https://github.com/silverstripe-australia/silverstripe-gridfieldextensions)
 		$gridFieldAddNewMultiClass = $config->getComponentsByType('GridFieldAddNewMultiClass')->first();
 		if ($gridFieldAddNewMultiClass) {
 			$classes = $gridFieldAddNewMultiClass->getClasses($field);

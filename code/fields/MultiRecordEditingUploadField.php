@@ -26,6 +26,8 @@ class MultiRecordEditingUploadField extends UploadField {
     public function upload(SS_HTTPRequest $request) {
         // Find the first set of upload data that looks like it came from an
         // UploadField.
+        // NOTE(Jake): There is only the SecurityID and the 'upload' data as this is done
+        //             in it's own AJAX request, not sent along with all the other data.
         foreach ($request->postVars() as $key => $value)
         {
             // todo(Jake): Test SS 3.1 compatibility

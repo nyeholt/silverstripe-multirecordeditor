@@ -64,13 +64,24 @@
 		// Pass in '.js-multirecordediting-list' and it'll update the sort value to match
 		// the order of elements.
 		function sortUpdate($list) {
+			var changed = false;
+
 			$list.children().each(function(index) {
 				var sortValue = index + 1;
 				// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
 				//			   sort fields in nested MultiRecordEditingField's.
 				var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
-				$sortField.val(sortValue.toString());
+				if ($sortField.val() != sortValue.toString()) {
+					$sortField.val(sortValue.toString());
+					changed = true;
+				}
 			});
+
+			if (changed)
+			{
+				// Set CMS flag so it says 'You have unsaved changes, are you sure you want to leave?'
+				$('.cms-edit-form').addClass('changed');
+ 			}
 		}
 
 		var isSorting = false;
@@ -87,9 +98,15 @@
 				});
 
 				function helper(e, row) {
-					return row.clone()
+					var result = row.clone()
 			          .addClass("is-helper")
 			          .width(row.parent().width());
+
+			        row.find('textarea.htmleditor').each(function(){
+						tinymce.execCommand('mceRemoveEditor', false, $(this).attr('id'));
+				    });
+
+				    return result;
 				}
 
 				function start(e) {
@@ -102,6 +119,11 @@
 
 				function stop(e) {
 					sortUpdate(self.parent());
+
+					// HTMLEditorField support
+					$(this).find('textarea.htmleditor').each(function(){
+						tinymce.execCommand('mceAddEditor', true, $(this).attr('id'));
+					});
 				}
 
 				this.parent().sortable({
@@ -139,15 +161,59 @@
 		//
 		// I/O
 		//
-		$('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline').entwine({
-			onclick: function(e) {
-				e.preventDefault();
+		$('select.js-multirecordediting-classname').entwine({
+			onmatch: function() {
+				this._super();
+				this.change();
+			},
+			onchange: function(e) {
+				this._super();
 
 				var self = this[0],
 					$self = $(self);
 
-				var className, $dropdown;
-				$dropdown = $self.parent().parent().find('select.js-multirecordediting-classname');
+				var $actions = $self.parents('.js-multirecordediting-actions');
+				var $inlineAddButton = $actions.find('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline');
+				if ($inlineAddButton.length)
+				{
+					var className = $self.val();
+					if (className)
+					{
+						$inlineAddButton.removeClass('is-disabled');
+						if ($inlineAddButton.hasClass('ui-button')) {
+							$inlineAddButton.button().button('enable');
+						} else {
+							$inlineAddButton.prop('disabled', false);
+						}
+					}
+					else
+					{
+						$inlineAddButton.addClass('is-disabled');
+						if ($inlineAddButton.hasClass('ui-button')) {
+							$inlineAddButton.button().button('disable');
+						} else {
+							$inlineAddButton.prop('disabled', true);
+						}
+					}
+				}
+			}
+		});
+
+		$('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline').entwine({
+			onclick: function(e) {
+				e.preventDefault();
+				var self = this[0],
+					$self = $(self);
+
+				if ($self.hasClass('is-disabled') || $self.is(":disabled") || $self.hasClass('is-loading')) {
+					return;
+				}
+
+				var $actions, $dropdown, $loader;
+				$actions = $self.parents('.js-multirecordediting-actions');
+				$dropdown = $actions.find('select.js-multirecordediting-classname');
+
+				var className;
 				if ($dropdown.length) {
 					className = $dropdown.val();
 				} else {
@@ -160,7 +226,6 @@
 					return;
 				}
 
-				var fieldName = $self.data('name');
 				this.addinlinerecord(className, function(data) {
 					var num = $self.data('add-inline-num') || 1;
 					var depth = $self.data('depth');
@@ -193,12 +258,21 @@
 				var $form = $(self.form);
 				var action = $form.attr('action');
 				var fieldAction = $self.data('action');
+				if (!fieldAction)
+				{
+					console.log('MultiRecordEditingField::AddInlineRecord: Missing data-action attribute.');
+					return;
+				}
 				var url = action+'/field/'+fieldAction+'/addinlinerecord';
 				url += '/'+encodeURIComponent(className);
 
 				if (!hasTemplate(className))
 				{
+					$actions = $self.parents('.js-multirecordediting-actions');
+					$loader = $actions.find('.js-multirecordediting-loading');
 					$self.addClass('is-loading');
+					$loader.addClass('is-loading');
+
 					$.ajax({
 						async: true,
 						cache: false,
@@ -215,6 +289,7 @@
 						},
 						complete: function() {
 							$self.removeClass('is-loading');
+							$loader.removeClass('is-loading');
 						}
 					});
 				}

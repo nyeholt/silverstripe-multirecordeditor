@@ -56,6 +56,18 @@ class MultiRecordEditingField extends FormField {
     protected $list;
 
     /**
+     * @var FieldList
+     */
+    protected $actions = null;
+
+    /**
+     * Field to use for the ToggleCompositeField's heading/title
+     *
+     * @var string
+     */
+    protected $titleField = '';
+
+    /**
      * Override the field function to call on the record.
      *
      * @var function|string
@@ -412,15 +424,6 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
-     * @return ArrayList
-     */
-    /*public function getRecords()
-    {
-        Deprecation::notice('2.0', __FUNCTION__.' is deprecated. Use getList instead. Change made to keep this field more consistent with GridField API.');
-        return $this->list;
-    }*/
-
-    /**
      * @return SS_List
      */
     public function getList() {
@@ -458,6 +461,25 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
+     * Get the field to use for the ToggleCompositeField's heading/title
+     *
+     * @return string
+     */
+    public function getTitleField() {
+        return $this->titleField;
+    }
+
+    /**
+     * Set the field to use for the ToggleCompositeField's heading/title
+     *
+     * @return \MultiRecordEditingField
+     */
+    public function setTitleField($fieldName) {
+        $this->titleField = $fieldName;
+        return $this;
+    }
+
+    /**
      * Get the default function to call on the record if
      * $this->fieldsFunction isn't set.
      * 
@@ -486,9 +508,13 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
+     * Set the function to call on the $record for determining what fields to show.
+     *
      * If string, then set the method to call on the record to get fields.
      * If closure, then call the method for the fields with $record as the first parameter.
      *
+     * @param string|function $functionOrFunctionName 
+     * @param boolean $fallback If true, fallback to using 'getMultiRecordEditingFields' and then fallback to 'getCMSFields'
      * @return MultiRecordEditingField
      */
     public function setFieldsFunction($functionOrFunctionName, $fallback = false) {
@@ -572,12 +598,26 @@ class MultiRecordEditingField extends FormField {
             $sortField->addExtraClass('js-multirecordediting-sort-field');
         }
 
-        // Set heading (ie. 'My Record (Draft)')
+        //
         $recordExists = $record->exists();
-        $recordSectionTitle = $record->Title;
-        $status = ($recordExists) ? $record->CMSPublishedState : 'New';
-        if ($status) {
-            $recordSectionTitle .= ' ('.$status.')';
+
+        // Set heading (ie. 'My Record (Draft)')
+        $titleFieldName = $this->getTitleField();
+        if (!$titleFieldName)
+        {
+            $recordSectionTitle = $record->MultiRecordEditingTitle;
+            if (!$recordSectionTitle)
+            {
+                $recordSectionTitle = $record->Title;
+                $status = ($recordExists) ? $record->CMSPublishedState : 'New';
+                if ($status) {
+                    $recordSectionTitle .= ' ('.$status.')';
+                }
+            }
+        }
+        else
+        {
+            $recordSectionTitle = $record->$titleFieldName;
         }
         if (!$recordSectionTitle) {
             // NOTE(Jake): Ensures no title'd ToggleCompositeField's have a proper height.
@@ -615,8 +655,10 @@ class MultiRecordEditingField extends FormField {
                 $action = $this->getActionName($field, $record);
                 $field->setAttribute('data-action', $action);
                 // NOTE(Jake): Unclear at time of writing (17-06-2016) if nested MultiRecordEditingField should
-                //             inherit certain settings or not.
+                //             inherit certain settings or not. Might add flag like 'setRecursiveOptions' later
+                //             or something.
                 $field->setFieldsFunction($this->getFieldsFunction(), $this->fieldsFunctionFallback);
+                //$field->setTitleField($this->getTitleField());
             }
             else
             {
@@ -881,7 +923,7 @@ class MultiRecordEditingField extends FormField {
                     $sortValue = $subRecord->{$sortFieldName};
                     if ($sortValue <= 0)
                     {
-                        throw new ValidationException('Invalid sort value ('.$sortValue.') on #'.$subRecord->ID.' for class '.$subRecord->class.'. Sort value must be greater than 0.');
+                        throw new Exception('Invalid sort value ('.$sortValue.') on #'.$subRecord->ID.' for class '.$subRecord->class.'. Sort value must be greater than 0.');
                     }
                     
                     if (!$subRecord->doValidate())
@@ -987,8 +1029,8 @@ class MultiRecordEditingField extends FormField {
             {
                 $this->setValue($class_id_field);
                 $this->saveInto($record);
-                $this->setValue(null);
             }
+            $this->setValue(null);
 
             // Remove records from list that haven't been changed to avoid unnecessary 
             // permission check and ->write overhead
@@ -1074,6 +1116,10 @@ class MultiRecordEditingField extends FormField {
                 }
             }
 
+            // Debugging (for looking at UnsavedRelationList's to ensure $_new_records_to_write is working)
+            // NOTE(Jake): Added to debug Frontend Objects module support
+            //Debug::dump($record); Debug::dump($relation_class_id_field); exit('Exited at: '.__CLASS__.'::'.__FUNCTION__);// Debug raw request information tree
+
             // Save existing items
             foreach (self::$_existing_records_to_write as $subRecord) 
             {
@@ -1095,39 +1141,28 @@ class MultiRecordEditingField extends FormField {
      * @return FieldList
      */
     public function Actions() {
-        $fields = FieldList::create();
         if (!$this->getCanAddInline())
         {
-            return $fields;
+            return new FieldList();
+        }
+        if ($this->actions)
+        {
+            return $this->actions;
         }
 
-        $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
-        $modelFirstClass = key($modelClasses);
-        $fields->unshift($inlineAddButton = FormAction::create($this->getName().'_addinlinerecord', 'Add')
-                            ->addExtraClass('js-multirecordediting-add-inline')
+        // Setup default actions
+        $this->actions = new FieldList;
+        $this->actions->unshift($inlineAddButton = FormAction::create('AddInlineRecord', 'Add')
+                            ->addExtraClass('multirecordeditingfield-addinlinebutton js-multirecordediting-add-inline')
+                            ->setAttribute('autocomplete', 'off')
                             ->setUseButtonTag(true));
-
-        // Setup default inline field data attributes
-        $inlineAddButton->setAttribute('data-name', $this->getName());
-        $inlineAddButton->setAttribute('data-action', $this->getName());
-        $inlineAddButton->setAttribute('data-class', $modelFirstClass);
-        $inlineAddButton->setAttribute('data-depth', $this->depth);
-        // Automatically apply all data attributes on this element, to the inline button.
-        foreach ($this->getAttributes() as $name => $value)
-        {
-            if (substr($name, 0, 5) === 'data-')
-            {
-                $inlineAddButton->setAttribute($name, $value);
-            }
-        }
-        if (count($modelClasses) > 1) 
-        {
-            $fields->unshift($classField = DropdownField::create($this->getName().'_ClassName', ' ')
-                                            ->addExtraClass('js-multirecordediting-classname')
+        $this->actions->unshift($classField = DropdownField::create('ClassName', ' ')
+                                            ->addExtraClass('multirecordeditingfield-classname js-multirecordediting-classname')
+                                            ->setAttribute('autocomplete', 'off')
                                             ->setEmptyString('(Select section type to create)'));
-            $classField->setSource($modelClasses);
-        }
-        return $fields;
+        $inlineAddButton->addExtraClass('ss-ui-action-constructive ss-ui-button');
+        $inlineAddButton->setAttribute('data-icon', 'add');
+        return $this->actions;
     }
 
     /**
@@ -1261,6 +1296,10 @@ class MultiRecordEditingField extends FormField {
                 //             Requirements::javascript on-the-fly.
                 //Requirements::javascript(FRAMEWORK_DIR . "/thirdparty/jquery/jquery.js");
                 Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
+                if (is_subclass_of(Controller::curr(), 'LeftAndMain')) {
+                    Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingFieldCMS.css');
+                }
+
                 Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
                 Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
                 Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
@@ -1277,7 +1316,71 @@ class MultiRecordEditingField extends FormField {
                 }
             }
 
+            //
+            // Setup actions
+            //
+            $actions = $this->Actions();
+            if ($actions->count())
+            {
+                $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
+                $modelFirstClass = key($modelClasses);
 
+                $inlineAddButton = $actions->dataFieldByName('action_AddInlineRecord');
+                if ($inlineAddButton)
+                {
+                    // Setup default inline field data attributes
+                    //$inlineAddButton->setAttribute('data-name', $this->getName());
+                    $inlineAddButton->setAttribute('data-action', $this->getName());
+                    $inlineAddButton->setAttribute('data-class', $modelFirstClass);
+                    $inlineAddButton->setAttribute('data-depth', $this->depth);
+                    // Automatically apply all data attributes on this element, to the inline button.
+                    foreach ($this->getAttributes() as $name => $value)
+                    {
+                        if (substr($name, 0, 5) === 'data-')
+                        {
+                            $inlineAddButton->setAttribute($name, $value);
+                        }
+                    }
+                    if (count($modelClasses) == 1) 
+                    {
+                        $name = singleton($modelFirstClass)->i18n_singular_name();
+                        $inlineAddButton->setTitle('Add '.$name);
+                    }
+                }
+
+                $classField = $actions->dataFieldByName('ClassName');
+                if ($classField)
+                {
+                    if (count($modelClasses) > 1) 
+                    {
+                        if ($inlineAddButton)
+                        {
+                            $inlineAddButton->setDisabled(true);
+                        }
+                        $classField->setSource($modelClasses);
+                    }
+                    else
+                    {
+                        $actions->removeByName('ClassName');
+                    }
+                }
+
+                // Allow outside sources to influences the disable state class-wise
+                if ($inlineAddButton && $inlineAddButton->isDisabled())
+                {
+                    $inlineAddButton->addExtraClass('is-disabled');
+                }
+
+                // Expand out names
+                foreach ($actions as $actionField)
+                {
+                    $actionField->setName($this->getName().'_'.$actionField->getName());
+                }
+            }
+
+            //
+            // Return all fields from the records editing
+            //
             foreach ($this->list as $record)
             {
                 $recordFields = $this->getRecordDataFields($record);
