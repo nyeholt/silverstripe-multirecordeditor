@@ -6,8 +6,7 @@
 		var _cache = {};
 
 		function hasTemplate(name) {
-			return false; // todo(jake): remove debug
-			return (typeof _cache[name] !== 'undefined'); 
+			return (typeof _cache[name] !== 'undefined');
 		}
 
 		function renderString(string, variables) {
@@ -21,11 +20,6 @@
 				}
 			}
 			return string;
-		}
-
-		function renderTemplate(name, variables) {
-			var result = _cache[name];
-			return renderString(result, variables);
 		}
 
 		function getTemplate(name, html) {
@@ -239,7 +233,7 @@
 					// in the field list container.
 					var $field = $self.parents('.js-multirecordediting-field').first();
 					var $fieldList = $field.find('.js-multirecordediting-list').first();
-					$fieldList.append(renderTemplate(className, renderTree));
+					$fieldList.append(renderString(data, renderTree));
 					sortUpdate($fieldList);
 
 					$self.data('add-inline-num', num + 1);
@@ -266,7 +260,9 @@
 				var url = action+'/field/'+fieldAction+'/addinlinerecord';
 				url += '/'+encodeURIComponent(className);
 
-				if (!hasTemplate(className))
+				var templateID = url;
+
+				if (!hasTemplate(templateID))
 				{
 					$actions = $self.parents('.js-multirecordediting-actions');
 					$loader = $actions.find('.js-multirecordediting-loading');
@@ -275,13 +271,9 @@
 
 					$.ajax({
 						async: true,
-						cache: false,
 						url: url,
 						success: function(data) {
-							if (!hasTemplate(className)) {
-								// todo(Jake): Ensure cache takes into account parent element tree (classes, specific IDs for parents, etc)
-								setTemplate(className, data);
-							}
+							setTemplate(templateID, data);
 							callback.apply(this, arguments);
 						},
 						error: function(xhr, status) {
@@ -295,7 +287,7 @@
 				}
 				else
 				{
-					var data = getTemplate(className);
+					var data = getTemplate(templateID);
 					callback.apply(this, [data]);
 				}
 
