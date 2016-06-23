@@ -1,6 +1,6 @@
 <?php
 
-class MultiRecordEditingUploadField extends UploadField {
+class MultiRecordUploadField extends UploadField {
     /**
      * @var array
      */
@@ -14,7 +14,7 @@ class MultiRecordEditingUploadField extends UploadField {
      *
      * @var string
      */
-    public $multiRecordEditingFieldAction = '';
+    public $multiRecordAction = '';
 
     /**
      * Action to handle upload of a single file
@@ -45,10 +45,10 @@ class MultiRecordEditingUploadField extends UploadField {
     }
 
     /**
-     * @return MultiRecordEditingUploadField
+     * @return MultiRecordUploadField
      */ 
     public static function cast(UploadField $field) {
-        $castCopy = MultiRecordEditingUploadField::create($field->getName(), $field->Title());
+        $castCopy = MultiRecordUploadField::create($field->getName(), $field->Title());
         foreach (get_object_vars($field) as $property => $value)
         {
             $castCopy->$property = $value;
@@ -57,8 +57,8 @@ class MultiRecordEditingUploadField extends UploadField {
     }
 
     public function Link($action = null) {
-        if ($this->multiRecordEditingFieldAction) {
-            return $this->form->FormAction().'/field/'.$this->multiRecordEditingFieldAction.'/'.$action;
+        if ($this->multiRecordAction) {
+            return $this->form->FormAction().'/field/'.$this->multiRecordAction.'/'.$action;
         }
         return parent::Link($action);
     }

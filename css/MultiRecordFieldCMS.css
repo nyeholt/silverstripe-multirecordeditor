@@ -1,18 +1,21 @@
 /* CMS-Specific Styling */
+div.multirecord > div.middleColumn {
+	margin-left: 0;
+}
 
-div.multirecordeditingfield-classname {
+div.multirecordfield-classname {
 	/* Remove CMS style */
 	margin: 0;
 	border-bottom: 0;
 	box-shadow: none;
 }
 
-.multirecordeditingfield-classname .middleColumn {
+.multirecordfield-classname .middleColumn {
 	/* Remove CMS style */
 	margin-left: 0;
 }
 
-.multirecordeditingfield-actions .chzn-container {
+.multirecordfield-actions .chzn-container {
 	/* Vertically center chosen <select> to align with InlineAddButton */
 	margin-top: -2px;
 }

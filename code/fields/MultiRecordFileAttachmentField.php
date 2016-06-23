@@ -8,7 +8,7 @@ if (!class_exists('FileAttachmentField')) {
  * Support for FileAttachmentField from Unclecheese's Dropzone module.
  * Only supports ~1.2.x at time of writing (20/06/2016)
  */ 
-class MultiRecordEditingFileAttachmentField extends FileAttachmentField {
+class MultiRecordFileAttachmentField extends FileAttachmentField {
     private static $allowed_actions = array(
         'upload',
     );
@@ -18,7 +18,7 @@ class MultiRecordEditingFileAttachmentField extends FileAttachmentField {
      *
      * @var string
      */
-    public $multiRecordEditingFieldAction = '';
+    public $multiRecordAction = '';
 
     /**
      * The name used in the SS_HTTPRequest
@@ -51,7 +51,7 @@ class MultiRecordEditingFileAttachmentField extends FileAttachmentField {
         if ($this->MultiRecordEditing_Name) 
         {
             // NOTE(Jake): Handle deletions by using the original sent name here, 
-            //             ie. Use 'ElementArea__MultiRecordEditingField__ElementGallery__33__Image' not 'Image'. 
+            //             ie. Use 'ElementArea__MultiRecordField__ElementGallery__33__Image' not 'Image'. 
             $deletions = Controller::curr()->getRequest()->postVar('__deletion__'.$this->MultiRecordEditing_Name);
 
             if($deletions) {
@@ -83,10 +83,10 @@ class MultiRecordEditingFileAttachmentField extends FileAttachmentField {
     }
 
     /**
-     * @return MultiRecordEditingFileAttachmentField
+     * @return MultiRecordFileAttachmentField
      */ 
     public static function cast(FileAttachmentField $field) {
-        $castCopy = MultiRecordEditingFileAttachmentField::create($field->getName(), $field->Title(), $field->Value(), $field->getForm());
+        $castCopy = MultiRecordFileAttachmentField::create($field->getName(), $field->Title(), $field->Value(), $field->getForm());
         foreach (get_object_vars($field) as $property => $value)
         {
             $castCopy->$property = $value;
@@ -95,8 +95,8 @@ class MultiRecordEditingFileAttachmentField extends FileAttachmentField {
     }
 
     public function Link($action = null) {
-        if ($this->multiRecordEditingFieldAction) {
-            return $this->form->FormAction().'/field/'.$this->multiRecordEditingFieldAction.'/'.$action;
+        if ($this->multiRecordAction) {
+            return $this->form->FormAction().'/field/'.$this->multiRecordAction.'/'.$action;
         }
         return parent::Link($action);
     }

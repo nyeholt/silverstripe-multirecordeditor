@@ -1,9 +1,9 @@
 <?php
 
 /**
- * @author Jake Bentvelzen, Marcus
+ * @author Jake Bentvelzen
  */
-class MultiRecordEditingField extends FormField {
+class MultiRecordField extends FormField {
     /**
      * Invalid sort value. Value should be replaced by JavaScript on
      * new records without a sort value.
@@ -34,11 +34,11 @@ class MultiRecordEditingField extends FormField {
      * @var array
      */
     private static $default_config = array(
-        'HtmlEditorField' => array(
+        /*'HtmlEditorField' => array(
             'functions' => array(
                 'setRows' => 6,
             ),
-        ),
+        ),*/
     );
 
     /**
@@ -133,7 +133,7 @@ class MultiRecordEditingField extends FormField {
     protected $extraClasses = array();
 
     /**
-     * How nested inside other MultiRecordEditingField's this field is.
+     * How nested inside other MultiRecordField's this field is.
      *
      * @var int
      */
@@ -213,7 +213,7 @@ class MultiRecordEditingField extends FormField {
         }
 
         // Re-write field names to be unique
-        // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
+        // ie. 'Title' to be 'ElementArea__MultiRecordField__ElementGallery__Title'
         foreach ($dataFields as $field)
         {
             $name = $this->getFieldName($field, $record);
@@ -238,7 +238,13 @@ class MultiRecordEditingField extends FormField {
         // Allow fields to render, 
         $this->children = $fields;
 
-        return $this->renderWith(array('MultiRecordEditingField_addinline'));
+        // Remove all actions
+        $actions = $this->Actions();
+        foreach ($actions as $action) {
+            $actions->remove($action);
+        }
+
+        return $this->renderWith(array($this->class.'_addinline', __CLASS__.'_addinline'));
     }
 
     public function handleRequest(SS_HTTPRequest $request, DataModel $model) {
@@ -273,7 +279,7 @@ class MultiRecordEditingField extends FormField {
 
     /**
      * @param boolean $value
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function setUseToggles($value)
     {
@@ -291,7 +297,7 @@ class MultiRecordEditingField extends FormField {
 
     /**
      * @param boolean $value
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function setCanAddInline($value) {
         $value = $this->canAddInline;
@@ -306,14 +312,14 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function getConfig() {
         return $this->config;
     }
 
     /**
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function setConfig($config) {
         if ($config && $config instanceof GridFieldConfig) {
@@ -326,6 +332,33 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
+     * Gets the first model class from list.
+     * This function exists to be identical to the GridField function so developers can
+     * quickly switch between the two.
+     *
+     * @return string
+     */
+    public function getModelClass() {
+        return reset($this->modelClassNames);
+    }
+
+    /**
+     * Set one model class. 
+     * This function exists to be identical to the GridField function so developers can
+     * quickly switch between the two.
+     *
+     * @param string $modelClass
+     * @return \MultiRecordField
+     */
+    public function setModelClass($modelClass) {
+        if (is_array($modelClass))
+        {
+            throw new Exception(__CLASS__.'::'.__FUNCTION__.': Only accepts singular value (not array).');
+        }
+        return $this->setModelClasses($modelClass);
+    }
+
+    /**
      * If array, can be formatted like so:
      * array('MyClass', 'MyOtherClass')
      * -or-
@@ -335,7 +368,7 @@ class MultiRecordEditingField extends FormField {
      *
      * @param array|string $modelClassName
      *
-     * @return $this
+     * @return \MultiRecordField
      */
     public function setModelClasses($modelClassNames) {
         if (is_array($modelClassNames)) {
@@ -432,7 +465,7 @@ class MultiRecordEditingField extends FormField {
 
     /**
      * @param SS_List $list
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function setList(SS_List $list) {
         $this->list = $list;
@@ -441,7 +474,7 @@ class MultiRecordEditingField extends FormField {
 
     /**
      * @param Form $form
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function setForm($form)
     {
@@ -472,7 +505,7 @@ class MultiRecordEditingField extends FormField {
     /**
      * Set the field to use for the ToggleCompositeField's heading/title
      *
-     * @return \MultiRecordEditingField
+     * @return \MultiRecordField
      */
     public function setTitleField($fieldName) {
         $this->titleField = $fieldName;
@@ -514,8 +547,8 @@ class MultiRecordEditingField extends FormField {
      * If closure, then call the method for the fields with $record as the first parameter.
      *
      * @param string|function $functionOrFunctionName 
-     * @param boolean $fallback If true, fallback to using 'getMultiRecordEditingFields' and then fallback to 'getCMSFields'
-     * @return MultiRecordEditingField
+     * @param boolean $fallback If true, fallback to using 'getMultiRecordFields' and then fallback to 'getCMSFields'
+     * @return MultiRecordField
      */
     public function setFieldsFunction($functionOrFunctionName, $fallback = false) {
         $this->fieldsFunction = $functionOrFunctionName;
@@ -588,14 +621,14 @@ class MultiRecordEditingField extends FormField {
                     $sortField->setValue($sortValue);
                 }
                 // NOTE(Jake): Uses array_merge() to prepend the sort field in the $fields associative array.
-                //             The sort field is prepended so jQuery.find('.js-multirecordediting-sort-field').first()
+                //             The sort field is prepended so jQuery.find('.js-multirecordfield-sort-field').first()
                 //             finds the related sort field to this, rather than a sort field nested deeply in other
-                //             MultiRecordEditingField's.
+                //             MultiRecordField's.
                 $fields = array_merge(array(
                     $sortFieldName => $sortField
                 ), $fields);
             }
-            $sortField->addExtraClass('js-multirecordediting-sort-field');
+            $sortField->addExtraClass('js-multirecordfield-sort-field');
         }
 
         //
@@ -626,7 +659,7 @@ class MultiRecordEditingField extends FormField {
 
         // Add heading field / Togglable composite field with heading
         $recordID = $this->getFieldID($record);
-        $subRecordField = MultiRecordEditingSubRecordField::create('MultiRecordEditingSubRecordField'.$recordID, $recordSectionTitle, null);
+        $subRecordField = MultiRecordSubRecordField::create('MultiRecordSubRecordField'.$recordID, $recordSectionTitle, null);
         $subRecordField->setParent($this);
         $subRecordField->setRecord($record);
 
@@ -650,11 +683,11 @@ class MultiRecordEditingField extends FormField {
                 $field->setValue($val, $record);
             }
 
-            if ($field instanceof MultiRecordEditingField) {
+            if ($field instanceof MultiRecordField) {
                 $field->depth = $this->depth + 1;
                 $action = $this->getActionName($field, $record);
                 $field->setAttribute('data-action', $action);
-                // NOTE(Jake): Unclear at time of writing (17-06-2016) if nested MultiRecordEditingField should
+                // NOTE(Jake): Unclear at time of writing (17-06-2016) if nested MultiRecordField should
                 //             inherit certain settings or not. Might add flag like 'setRecursiveOptions' later
                 //             or something.
                 $field->setFieldsFunction($this->getFieldsFunction(), $this->fieldsFunctionFallback);
@@ -690,8 +723,8 @@ class MultiRecordEditingField extends FormField {
                     // this field.
                     $action = $this->getActionName($field, $record);
 
-                    $field = MultiRecordEditingUploadField::cast($field);
-                    $field->multiRecordEditingFieldAction = $action;
+                    $field = MultiRecordUploadField::cast($field);
+                    $field->multiRecordAction = $action;
                 }
                 else if ($field instanceof FileAttachmentField) 
                 {
@@ -701,14 +734,14 @@ class MultiRecordEditingField extends FormField {
                     // Support for Unclecheese's Dropzone module
                     // @see: https://github.com/unclecheese/silverstripe-dropzone/tree/1.2.3
                     $action = $this->getActionName($field, $record);
-                    $field = MultiRecordEditingFileAttachmentField::cast($field);
-                    $field->multiRecordEditingFieldAction = $action;
+                    $field = MultiRecordFileAttachmentField::cast($field);
+                    $field->multiRecordAction = $action;
 
                     // Fix $field->Value()
                     if ($recordExists && !$val && isset($record->{$fieldName.'ID'}))
                     {
                         // NOTE(Jake): This check was added for 'FileAttachmentField'.
-                        //             Putting this outside of this if-statement will break UploadField.
+                        //             Putting this outside of this 'instanceof' if-statement will break UploadField.
                         $val = $record->__get($fieldName.'ID');
                         if ($val)
                         {
@@ -745,11 +778,11 @@ class MultiRecordEditingField extends FormField {
         // ---------------
         //  Level 1 Nest:
         //  -------------
-        //  [0] => ElementArea [1] => MultiRecordEditingField [2] => ElementGallery [3] => new_2 [4] => Images
+        //  [0] => ElementArea [1] => MultiRecordField [2] => ElementGallery [3] => new_2 [4] => Images
         //
         //  Level 2 Nest:
         //  -------------
-        //                     [5] => MultiRecordEditingField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
+        //                     [5] => MultiRecordField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
         // 
         //
         $nameData = $this->getFieldName($field, $record);
@@ -759,9 +792,9 @@ class MultiRecordEditingField extends FormField {
         for ($i = 1; $i < $nameDataCount; $i += 4)
         {
             $signature = $nameData[$i];
-            if ($signature !== 'MultiRecordEditingField')
+            if ($signature !== 'MultiRecordField')
             {
-                throw new LogicException('Error caused by developer. Invalid signature in "MultiRecordEditingField". Signature: '.$signature);
+                throw new LogicException('Error caused by developer. Invalid signature in "MultiRecordField". Signature: '.$signature);
             }
             $class = $nameData[$i + 1];
             $id = $nameData[$i + 2];
@@ -785,7 +818,7 @@ class MultiRecordEditingField extends FormField {
         $recordID = $this->getFieldID($record);
 
         return sprintf(
-            '%s__%s__%s__%s__%s', $this->getName(), 'MultiRecordEditingField', $record->ClassName, $recordID, $name
+            '%s__%s__%s__%s__%s', $this->getName(), 'MultiRecordField', $record->ClassName, $recordID, $name
         );
     }
 
@@ -825,7 +858,7 @@ class MultiRecordEditingField extends FormField {
                 {
                     if (strpos($idString, 'o-multirecordediting') !== FALSE)
                     {
-                        throw new Exception('Invalid template ID passed in ("'.$idString.'"). This should have been replaced by MultiRecordEditingField.js. Is your JavaScript broken?');
+                        throw new Exception('Invalid template ID passed in ("'.$idString.'"). This should have been replaced by MultiRecordField.js. Is your JavaScript broken?');
                     }
                     $idParts = explode('_', $idString);
                     $id = 0;
@@ -871,11 +904,11 @@ class MultiRecordEditingField extends FormField {
                         if ($sortFieldName !== $fieldName && 
                             !isset($fields[$fieldName]))
                         {
-                            // todo(Jake): Say whether its missing the field from getCMSFields or getMultiRecordEditingFields or etc.
+                            // todo(Jake): Say whether its missing the field from getCMSFields or getMultiRecordFields or etc.
                             throw new Exception('Missing field "'.$fieldName.'" from "'.$subRecord->class.'" fields based on data sent from client. (Could be a hack attempt)');
                         }
                         $field = $fields[$fieldName];
-                        if (!$field instanceof MultiRecordEditingField)
+                        if (!$field instanceof MultiRecordField)
                         {
                             $value = $fieldData[self::FIELD_VALUE];
                         }
@@ -891,18 +924,18 @@ class MultiRecordEditingField extends FormField {
                         //             on 'saveInto', meaning people -could- circumvent certain permission checks
                         //             potentially. Must test this or defer extensions of 'FileField' to 'saveInto' later.
                         $field->saveInto($subRecord);
-                        $field->MultiRecordEditingField_SavedInto = true;
+                        $field->MultiRecordField_SavedInto = true;
                     }
 
                     // NOTE(Jake): FileAttachmentField uses a hack for deleting records, meaning sometimes
                     //             saveInto() won't be called due to the structure of the SS_HTTPRequest postVar name.
                     foreach ($fields as $fieldName => $field)
                     {
-                        if ($field instanceof FileAttachmentField && !$field->MultiRecordEditingField_SavedInto)
+                        if ($field instanceof FileAttachmentField && !$field->MultiRecordField_SavedInto)
                         {
                             $field->MultiRecordEditing_Name = $this->getFieldName($field->getName(), $subRecord);
                             $field->saveInto($subRecord);
-                            $field->MultiRecordEditingField_SavedInto = true;
+                            $field->MultiRecordField_SavedInto = true;
                         }
                     }
 
@@ -968,14 +1001,14 @@ class MultiRecordEditingField extends FormField {
                     $fieldParameters = explode('__', $name);
                     $fieldParametersCount = count($fieldParameters);
                     if ($fieldParametersCount < $FIELD_PARAMETERS_SIZE) {
-                        // You expect a name like 'ElementArea__MultiRecordEditingField__ElementGallery__new_1__Title'
+                        // You expect a name like 'ElementArea__MultiRecordField__ElementGallery__new_1__Title'
                         // So ensure 5 parameters exist in the name, otherwise continue.
                         continue;
                     }
                     $signature = $fieldParameters[1];
-                    if ($signature !== 'MultiRecordEditingField')
+                    if ($signature !== 'MultiRecordField')
                     {
-                        return $this->httpError(400, 'Invalid signature in "MultiRecordEditingField". Malformed MultiRecordEditingField sub-field or hack attempt.');
+                        return $this->httpError(400, 'Invalid signature in "MultiRecordField". Malformed MultiRecordField sub-field or hack attempt.');
                     }
 
                     $parentFieldName = $fieldParameters[0];
@@ -1020,7 +1053,7 @@ class MultiRecordEditingField extends FormField {
             // Debugging
             //Debug::dump($relation_class_id_field); exit('Exited at: '.__CLASS__.'::'.__FUNCTION__);// Debug raw request information tree
 
-            // Save all fields, including nested MultiRecordEditingField's
+            // Save all fields, including nested MultiRecordField's
             self::$_new_records_to_write = array();
             self::$_existing_records_to_write = array();
             $this->MultiRecordEditing_Name = $this->getName();
@@ -1051,7 +1084,7 @@ class MultiRecordEditingField extends FormField {
 
             //
             // Check permissions on everything at once
-            // (includes records added in nested-nested-nested-etc MultiRecordEditingField's)
+            // (includes records added in nested-nested-nested-etc MultiRecordField's)
             //
             $recordsPermissionUnable = array();
             foreach (self::$_new_records_to_write as $subRecordAndList) 
@@ -1153,11 +1186,11 @@ class MultiRecordEditingField extends FormField {
         // Setup default actions
         $this->actions = new FieldList;
         $this->actions->unshift($inlineAddButton = FormAction::create('AddInlineRecord', 'Add')
-                            ->addExtraClass('multirecordeditingfield-addinlinebutton js-multirecordediting-add-inline')
+                            ->addExtraClass('multirecordfield-addinlinebutton js-multirecordfield-add-inline')
                             ->setAttribute('autocomplete', 'off')
                             ->setUseButtonTag(true));
         $this->actions->unshift($classField = DropdownField::create('ClassName', ' ')
-                                            ->addExtraClass('multirecordeditingfield-classname js-multirecordediting-classname')
+                                            ->addExtraClass('multirecordfield-classname js-multirecordfield-classname')
                                             ->setAttribute('autocomplete', 'off')
                                             ->setEmptyString('(Select section type to create)'));
         $inlineAddButton->addExtraClass('ss-ui-action-constructive ss-ui-button');
@@ -1168,10 +1201,10 @@ class MultiRecordEditingField extends FormField {
     /**
      * Returns a read-only version of this field.
      *
-     * @return MultiRecordEditingField_Readonly
+     * @return MultiRecordField_Readonly
      */
     public function performReadonlyTransformation() {
-        $resultField = MultiRecordEditingField_Readonly::create($this->name, $this->title, $this->list);
+        $resultField = MultiRecordField_Readonly::create($this->name, $this->title, $this->list);
         foreach (get_object_vars($this) as $property => $value)
         {
             $resultField->$property = $value;
@@ -1191,7 +1224,7 @@ class MultiRecordEditingField extends FormField {
      * @return string
      */
     public function getSortFieldName() {
-        if ($this->sortFieldName) {
+        if ($this->sortFieldName || ($this->sortFieldName === '' && $this->sortFieldName === false)) {
             return $this->sortFieldName;
         }
 
@@ -1214,7 +1247,10 @@ class MultiRecordEditingField extends FormField {
     }
 
     /**
-     * @return MultiRecordEditingField
+     * Set what field to use for sorting the records. Setting to false or blank string will explictly disable the sort.
+     *
+     * @param string $name
+     * @return MultiRecordField
      */
     public function setSortFieldName($name) {
         $this->sortFieldName = $name;
@@ -1295,16 +1331,18 @@ class MultiRecordEditingField extends FormField {
                 // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
                 //             Requirements::javascript on-the-fly.
                 //Requirements::javascript(FRAMEWORK_DIR . "/thirdparty/jquery/jquery.js");
-                Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingField.css');
+                Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordField.css');
                 if (is_subclass_of(Controller::curr(), 'LeftAndMain')) {
-                    Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordEditingFieldCMS.css');
+                    // NOTE(Jake): Only include in CMS to fix margin issues. Not in the main CSS file
+                    //             so that the frontend CSS is less in the way.
+                    Requirements::css(MULTIRECORDEDITOR_DIR.'/css/MultiRecordFieldCMS.css');
                 }
 
                 Requirements::css(THIRDPARTY_DIR . '/jquery-ui-themes/smoothness/jquery-ui.css');
                 Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-ui/jquery-ui.js');
                 Requirements::javascript(FRAMEWORK_DIR . '/javascript/jquery-ondemand/jquery.ondemand.js');
                 Requirements::javascript(THIRDPARTY_DIR . '/jquery-entwine/dist/jquery.entwine-dist.js');
-                Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordEditingField.js');
+                Requirements::javascript(MULTIRECORDEDITOR_DIR.'/javascript/MultiRecordField.js');
 
                 // If config is set to 'default' but 'default' isn't configured, fallback to 'cms'.
                 // NOTE(Jake): In SS 3.2, 'default' is the default active config but its not configured.
@@ -1385,7 +1423,7 @@ class MultiRecordEditingField extends FormField {
             {
                 $recordFields = $this->getRecordDataFields($record);
                 // Re-write field names to be unique
-                // ie. 'Title' to be 'ElementArea__MultiRecordEditingField__ElementGallery__Title'
+                // ie. 'Title' to be 'ElementArea__MultiRecordField__ElementGallery__Title'
                 foreach ($recordFields->dataFields() as $field)
                 {
                     $name = $this->getFieldName($field, $record);
@@ -1393,7 +1431,7 @@ class MultiRecordEditingField extends FormField {
                 }
                 foreach ($recordFields as $field)
                 {
-                    if ($field instanceof MultiRecordEditingSubRecordField) {
+                    if ($field instanceof MultiRecordSubRecordField) {
                         $field->setName($this->getFieldName($field, $record));
                     }
                     if ($readonly) {
@@ -1409,9 +1447,14 @@ class MultiRecordEditingField extends FormField {
         $this->prepareForRender();
         return parent::FieldHolder($properties);
     }
+
+    public function Field($properties = array()) {
+        $this->prepareForRender();
+        return parent::Field($properties);
+    }
 }
 
-class MultiRecordEditingField_Readonly extends MultiRecordEditingField {
+class MultiRecordField_Readonly extends MultiRecordField {
     protected $readonly = true;
 
     public function handleRequest(SS_HTTPRequest $request, DataModel $model) {

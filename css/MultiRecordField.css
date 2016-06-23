@@ -1,21 +1,21 @@
 /* Actions */
-.multirecordeditingfield-actions {
+.multirecordfield-actions {
 	text-align: left;
 }
 
-.multirecordeditingfield-actions > * {
+.multirecordfield-actions > * {
 	display: inline-block;
 	vertical-align: top;
 }
 
 /* Hide Label */
-.multirecordeditingfield-classname label {
+.multirecordfield-classname label {
 	/* .visuallyhidden */
 	border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px;
 }
 
 /* Loading */
-.multirecordeditingfield-loading {
+.multirecordfield-loading {
 	position: relative;
 	left: 4px;
 	top: 5px;
@@ -26,17 +26,17 @@
 	visibility: hidden;
 }
 
-.multirecordeditingfield-loading.is-loading {
+.multirecordfield-loading.is-loading {
 	visibility: visible;
 }
 
 /* SubRecordField*/
-.multirecordeditingfield-subrecordfield {
+.multirecordfield-subrecordfield {
 	position: relative;
 	z-index: 0;
 }
 
-.multirecordeditingfield-subrecordfield > .multirecordeditingfield-subrecordfield_sort {
+.multirecordfield-subrecordfield > .multirecordfield-subrecordfield_sort {
 	position: absolute;
 	left: 0;
 	top: 50%;
@@ -44,11 +44,11 @@
 	z-index: 0;
 }
 
-.multirecordeditingfield-subrecordfield > .multirecordeditingfield-subrecordfield_fields {
+.multirecordfield-subrecordfield > .multirecordfield-subrecordfield_fields {
 	padding-left: 25px;
 }
 
-.multirecordeditingfield-subrecordfield_sort_handle {
+.multirecordfield-subrecordfield_sort_handle {
 	position: relative;
 	left: -3px;
 	z-index: 0;
@@ -58,7 +58,7 @@
 	cursor: move;
 }
 
-.multirecordeditingfield-subrecordfield_sort_handle_icon {
+.multirecordfield-subrecordfield_sort_handle_icon {
 	position: absolute;
 	top: 50%;
 	left: 50%;

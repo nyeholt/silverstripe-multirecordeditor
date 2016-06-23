@@ -42,7 +42,7 @@
 			// ElementArea__MultiRecordEditingField__ElementGallery__new_1__Images__MultiRecordEditingField__ElementGallery_Item__new_1__Items__MultiRecordEditingField__ElementGallery_Item_Item__new_1__Name
 			//
 			var renderTree = [];
-			var $parents = $(element).parents('.js-multirecordediting-list-item');
+			var $parents = $(element).parents('.js-multirecordfield-list-item');
 			for (var i = $parents.length - 1; i >= 0; --i)
 			{
 				// NOTE(Jake): We want to iterate from top to bottom, so iterate in reverse. (not bottom-to-top)
@@ -55,7 +55,7 @@
 			return renderTree;
 		}
 
-		// Pass in '.js-multirecordediting-list' and it'll update the sort value to match
+		// Pass in '.js-multirecordfield-list' and it'll update the sort value to match
 		// the order of elements.
 		function sortUpdate($list) {
 			var changed = false;
@@ -64,7 +64,7 @@
 				var sortValue = index + 1;
 				// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
 				//			   sort fields in nested MultiRecordEditingField's.
-				var $sortField = $(this).find('.js-multirecordediting-sort-field').first();
+				var $sortField = $(this).find('.js-multirecordfield-sort-field').first();
 				if ($sortField.val() != sortValue.toString()) {
 					$sortField.val(sortValue.toString());
 					changed = true;
@@ -79,7 +79,7 @@
 		}
 
 		var isSorting = false;
-		$('.js-multirecordediting-list-item').entwine({
+		$('.js-multirecordfield-list-item').entwine({
 			onadd: function() {
 				var self = this;
 
@@ -121,7 +121,7 @@
 				}
 
 				this.parent().sortable({
-					handle: '.js-multirecordediting-sort-handle',
+					handle: '.js-multirecordfield-sort-handle',
 					helper: helper,
 					opacity: 0.7,
 					start: start,
@@ -155,7 +155,7 @@
 		//
 		// I/O
 		//
-		$('select.js-multirecordediting-classname').entwine({
+		$('select.js-multirecordfield-classname').entwine({
 			onmatch: function() {
 				this._super();
 				this.change();
@@ -166,8 +166,8 @@
 				var self = this[0],
 					$self = $(self);
 
-				var $actions = $self.parents('.js-multirecordediting-actions');
-				var $inlineAddButton = $actions.find('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline');
+				var $actions = $self.parents('.js-multirecordfield-actions');
+				var $inlineAddButton = $actions.find('input.js-multirecordfield-add-inline, button.js-multirecordfield-add-inline');
 				if ($inlineAddButton.length)
 				{
 					var className = $self.val();
@@ -193,7 +193,7 @@
 			}
 		});
 
-		$('input.js-multirecordediting-add-inline, button.js-multirecordediting-add-inline').entwine({
+		$('input.js-multirecordfield-add-inline, button.js-multirecordfield-add-inline').entwine({
 			onclick: function(e) {
 				e.preventDefault();
 				var self = this[0],
@@ -204,8 +204,8 @@
 				}
 
 				var $actions, $dropdown, $loader;
-				$actions = $self.parents('.js-multirecordediting-actions');
-				$dropdown = $actions.find('select.js-multirecordediting-classname');
+				$actions = $self.parents('.js-multirecordfield-actions');
+				$dropdown = $actions.find('select.js-multirecordfield-classname');
 
 				var className;
 				if ($dropdown.length) {
@@ -229,10 +229,10 @@
 						id: 'new_'+num,
 					});
 
-					// Find field container ('js-multirecordediting-field') and add HTML
+					// Find field container ('js-multirecordfield-field') and add HTML
 					// in the field list container.
-					var $field = $self.parents('.js-multirecordediting-field').first();
-					var $fieldList = $field.find('.js-multirecordediting-list').first();
+					var $field = $self.parents('.js-multirecordfield-field').first();
+					var $fieldList = $field.find('.js-multirecordfield-list').first();
 					$fieldList.append(renderString(data, renderTree));
 					sortUpdate($fieldList);
 
@@ -254,18 +254,20 @@
 				var fieldAction = $self.data('action');
 				if (!fieldAction)
 				{
-					console.log('MultiRecordEditingField::AddInlineRecord: Missing data-action attribute.');
+					console.log('MultiRecordField::AddInlineRecord: Missing data-action attribute.');
 					return;
 				}
 				var url = action+'/field/'+fieldAction+'/addinlinerecord';
 				url += '/'+encodeURIComponent(className);
 
+				// NOTE(Jake): Might need to include Formname or get the full URL as relative paths might
+				//			   clash somehow.
 				var templateID = url;
 
 				if (!hasTemplate(templateID))
 				{
-					$actions = $self.parents('.js-multirecordediting-actions');
-					$loader = $actions.find('.js-multirecordediting-loading');
+					$actions = $self.parents('.js-multirecordfield-actions');
+					$loader = $actions.find('.js-multirecordfield-loading');
 					$self.addClass('is-loading');
 					$loader.addClass('is-loading');
 

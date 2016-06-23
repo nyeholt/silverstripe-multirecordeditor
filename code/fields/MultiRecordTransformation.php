@@ -1,6 +1,6 @@
 <?php
 
-class MultiRecordEditingTransformation extends FormTransformation {
+class MultiRecordTransformation extends FormTransformation {
 	public function transform(FormField $field) {
 		if (!$field instanceof GridField)
 		{
@@ -9,7 +9,7 @@ class MultiRecordEditingTransformation extends FormTransformation {
 		$title = $field->Title();
 		$list = $field->getList();
 		$config = $field->getConfig();
-		$result = MultiRecordEditingField::create($field->getName(), $title, $list);
+		$result = MultiRecordField::create($field->getName(), $title, $list);
 		
 		// Support: GridFieldExtensions (https://github.com/silverstripe-australia/silverstripe-gridfieldextensions)
 		$gridFieldAddNewMultiClass = $config->getComponentsByType('GridFieldAddNewMultiClass')->first();

@@ -1,12 +1,12 @@
 <?php
 
 /**
- * Keep track of the record editing and the MultiRecordEditingField
+ * Keep track of the record editing and the MultiRecordField
  * this is attached to.
  */
-class MultiRecordEditingSubRecordField extends CompositeField {
+class MultiRecordSubRecordField extends CompositeField {
     /**
-     * @var MultiRecordEditingField
+     * @var MultiRecordField
      */
     protected $parent = null;
 
@@ -39,23 +39,23 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     }
 
     /**
-     * @return MultiRecordEditingSubRecordField
+     * @return MultiRecordSubRecordField
      */
-    public function setParent(MultiRecordEditingField $parent)
+    public function setParent(MultiRecordField $parent)
     {
         $this->parent = $parent;
         return $this;
     }
 
     /**
-     * @return MultiRecordEditingField
+     * @return MultiRecordField
      */ 
     public function getParent() {
         return $this->parent;
     }
 
     /**
-     * @return MultiRecordEditingSubRecordField
+     * @return MultiRecordSubRecordField
      */
     public function setRecord($record)
     {
@@ -103,7 +103,7 @@ class MultiRecordEditingSubRecordField extends CompositeField {
      * @return FormField
      */
     public function performReadonlyTransformation() {
-        $resultField = MultiRecordEditingSubRecordField_Readonly::create($this->name, $this->title, $this->list);
+        $resultField = MultiRecordSubRecordField_Readonly::create($this->name, $this->title, $this->list);
         foreach (get_object_vars($this) as $property => $value)
         {
             $resultField->$property = $value;
@@ -128,11 +128,11 @@ class MultiRecordEditingSubRecordField extends CompositeField {
             // Check for user/dev errors
             $record = $this->getRecord();
             if (!$record || !is_object($record)) {
-                throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->record property. Ensure it\'s set by MultiRecordEditingField.');
+                throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->record property. Ensure it\'s set by MultiRecordField.');
             }
             $parent = $this->getParent();
-            if (!$parent || !is_object($parent) || !$parent instanceof MultiRecordEditingField) {
-                throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->parent property. Ensure it\'s set by MultiRecordEditingField.');
+            if (!$parent || !is_object($parent) || !$parent instanceof MultiRecordField) {
+                throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->parent property. Ensure it\'s set by MultiRecordField.');
             }
 
             // Prepare ToggleCompositeField
@@ -148,7 +148,6 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     }
 
     public function FieldHolder($properties = array()) {
-        $this->prepareForRender();
         return $this->Field($properties);
     }
 
@@ -158,6 +157,6 @@ class MultiRecordEditingSubRecordField extends CompositeField {
     }
 }
 
-class MultiRecordEditingSubRecordField_Readonly extends MultiRecordEditingSubRecordField {
+class MultiRecordSubRecordField_Readonly extends MultiRecordSubRecordField {
     protected $readonly = true;
 }

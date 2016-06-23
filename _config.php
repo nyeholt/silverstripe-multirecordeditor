@@ -35,3 +35,6 @@ $config = HtmlEditorConfig::get('multirecordediting_minimal');
 $config->removeButtons('justifyleft', 'justifyright', 'justifycenter', 'justifyfull');
 $config->removeButtons('indent', 'outdent', 'blockquote', 'hr', 'charmap');
 $config->setButtonsForLine(2, array());
+// todo(Jake): Factor these out to another module/site?
+$config->disablePlugins('contextmenu');
+$config->setOption('height', '250px');

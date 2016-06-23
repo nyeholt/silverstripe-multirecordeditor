@@ -28,7 +28,7 @@ content, both usage models can be catered for.
 ```
 private static $has_many = array('Cells', 'BasicContent');
 
-$editor = MultiRecordEditingField::create('ContentCellEditor', 'Content Cells', $this->Cells());
+$editor = MultiRecordField::create('ContentCellEditor', 'Content Cells', $this->Cells());
 $fields->addFieldToTab('Root.ContentCells', $editor);
 ```
 
@@ -46,7 +46,7 @@ class Page extends SiteTree {
     {
         $fields = parent::getCMSFields();
 
-        $editor = MultiRecordEditingField::create('ContentCellEditor', 'Content Cells', $this->Cells());
+        $editor = MultiRecordField::create('ContentCellEditor', 'Content Cells', $this->Cells());
         $fields->addFieldToTab('Root.ContentCells', $editor);
 
         if (Permission::check('ADMIN')) {
@@ -99,7 +99,7 @@ Alternatively, the top level items may be inserted on separate tabs
 		// in Page::getCMSFields()
 		$i = 0;
         foreach ($this->Cells() as $cell) {
-            $editor = MultiRecordEditingField::create('ContentCellEditor' . (++$i), $cell->Title, ArrayList::create(array($cell)));
+            $editor = MultiRecordField::create('ContentCellEditor' . (++$i), $cell->Title, ArrayList::create(array($cell)));
             $editor->setUseToggles(false);
             $fields->addFieldToTab('Root.' . $cell->Title, $editor);
         }
@@ -107,38 +107,28 @@ Alternatively, the top level items may be inserted on separate tabs
 
 **Multi-edit-ception?**
 
-The `MultiRecordEditingField` supports nesting of other 
-`MultiRecordEditingField`s. When the field detects a `MultiRecordEditingField` 
+The `MultiRecordField` supports nesting of other 
+`MultiRecordField`s. When the field detects a `MultiRecordField` 
 in the set of fields to edit, that field is added as another nested toggle 
 field inside the parent set of fields for editing. 
 
 **Custom fields**
 
-The `MultiRecordEditingField` uses the output of `getCMSFields` when building
+The `MultiRecordField` uses the output of `getCMSFields` when building
 the fieldlist used for editing. To provide an alternate set of fields, define
-a `multiEditFields` method that returns a `FieldList` object. 
+a `getMultiRecordFields` method that returns a `FieldList` object.
 
-Additionally, the `MultiRecordEditingField` calls the `updateMultiEditFields` 
+Additionally, the `MultiRecordField` calls the `updateMultiEditFields` 
 extension hook on the _record_ being edited to allow extensions a chance to
 change the fields. 
 
 ## Screenshots
 
-The above allows admin users to control what elements are available in the page
-for editing.
-
-![Admin view](screenshots/multi-edit.png)
-
-While content authors are provided an in-page view for editing items. 
-
-![Expanded editing view](screenshots/multi-edit-expanded.png)
-
-Or set on different tabs.
-
-![Tabbed editing view](screenshots/multi-edit-tabbed.png)
+[tod0]
 
 ## Maintainers
 
+* Jake Bentvelzen (SilbinaryWolf) <jake@silverstripe.com.au>
 * Marcus Nyeholt <marcus@silverstripe.com.au>
  
 ## Bugtracker
