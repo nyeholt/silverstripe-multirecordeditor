@@ -36,7 +36,7 @@
 	z-index: 0;
 }
 
-.multirecordfield-subrecordfield > .multirecordfield-subrecordfield_sort {
+.multirecordfield-subrecordfield_sort {
 	position: absolute;
 	left: 0;
 	top: 50%;
@@ -44,7 +44,7 @@
 	z-index: 0;
 }
 
-.multirecordfield-subrecordfield > .multirecordfield-subrecordfield_fields {
+.multirecordfield-subrecordfield_fields {
 	padding-left: 25px;
 }
 
