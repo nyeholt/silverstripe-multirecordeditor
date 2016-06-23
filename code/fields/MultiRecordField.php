@@ -42,6 +42,15 @@ class MultiRecordField extends FormField {
     );
 
     /**
+     * Classes to apply to every FormAction field.
+     * (ie. <button> or <input type="submit" />)
+     *
+     * @config
+     * @var string
+     */
+    private static $default_button_classes = '';
+
+    /**
      * Defaults to default_config if not set.
      *
      * @var array
@@ -126,6 +135,13 @@ class MultiRecordField extends FormField {
      * @var FieldList
      */
     protected $children, $tabs;
+
+    /**
+     * If null/false, fallback to default_button_classes config
+     *
+     * @var string|null
+     */
+    protected $buttonClasses = null;
 
     /**
      * @var array List of additional CSS classes for the form tag.
@@ -309,6 +325,30 @@ class MultiRecordField extends FormField {
      */
     public function getCanAddInline() {
         return $this->canAddInline;
+    }
+
+
+    /**
+     * @return string
+     */
+    public function getButtonClasses() {
+        $result = $this->buttonClasses;
+        if ($result === null || $result === false)
+        {
+            return $this->stat('default_button_classes');
+        }
+        return $result;
+    }
+
+    /**
+     * Set the classes to be applied on each FormAction field.
+     * (ie. <button> or <input type="submit" />)
+     *
+     * @return \MultiRecordField
+     */
+    public function setButtonClasses($classes) {
+        $this->buttonClasses = $classes;
+        return $this;
     }
 
     /**
@@ -1195,6 +1235,23 @@ class MultiRecordField extends FormField {
                                             ->setEmptyString('(Select section type to create)'));
         $inlineAddButton->addExtraClass('ss-ui-action-constructive ss-ui-button');
         $inlineAddButton->setAttribute('data-icon', 'add');
+
+        // NOTE(Jake): add 'updateActions' here if needed later.
+
+        // Update FormAction fields with button classes
+        // todo(Jake): Find a better location for applying this
+        $buttonClasses = $this->getButtonClasses();
+        if ($buttonClasses)
+        {
+            foreach ($this->actions as $actionField)
+            {
+                if ($actionField instanceof FormAction)
+                {
+                    $actionField->addExtraClass($buttonClasses);
+                }
+            }
+        }
+
         return $this->actions;
     }
 
@@ -1224,7 +1281,7 @@ class MultiRecordField extends FormField {
      * @return string
      */
     public function getSortFieldName() {
-        if ($this->sortFieldName || ($this->sortFieldName === '' && $this->sortFieldName === false)) {
+        if ($this->sortFieldName || ($this->sortFieldName === '' || $this->sortFieldName === false)) {
             return $this->sortFieldName;
         }
 
@@ -1358,7 +1415,7 @@ class MultiRecordField extends FormField {
             // Setup actions
             //
             $actions = $this->Actions();
-            if ($actions->count())
+            if ($actions && $actions->count())
             {
                 $modelClasses = $this->getModelClassesOrThrowExceptionIfEmpty();
                 $modelFirstClass = key($modelClasses);
@@ -1409,9 +1466,10 @@ class MultiRecordField extends FormField {
                     $inlineAddButton->addExtraClass('is-disabled');
                 }
 
-                // Expand out names
+                //
                 foreach ($actions as $actionField)
                 {
+                    // Expand out names
                     $actionField->setName($this->getName().'_'.$actionField->getName());
                 }
             }
