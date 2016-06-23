@@ -1,7 +1,9 @@
 <div class="field {$ExtraClass}">
 	<div class="clear"></div>
 	<div>
-		$Field
+		<% if $Fields %>
+			$Fields
+		<% end_if %>
 	</div>
 	<div class="clear"></div>
 </div>

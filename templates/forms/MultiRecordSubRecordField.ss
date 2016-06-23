@@ -1,4 +1,4 @@
-<div class="multirecordfield-subrecordfield <% if not $isReadonly %>js-multirecordfield-list-item<% end_if %>" data-id="<% if $Record %>$Record.ID<% else %>$Parent.getFieldID(0)<% end_if %>">
+<div class="multirecordfield-subrecordfield {$extraClass} <% if not $isReadonly %>js-multirecordfield-list-item<% end_if %>" data-name="$Name" data-id="<% if $Record %>$Record.ID<% else %>$Parent.getFieldID(0)<% end_if %>">
 	<% if $CanSort %>
 		<div class="multirecordfield-subrecordfield_sort">
 			<span class="multirecordfield-subrecordfield_sort_handle js-multirecordfield-sort-handle">

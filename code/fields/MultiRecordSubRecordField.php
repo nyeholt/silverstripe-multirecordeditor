@@ -71,6 +71,15 @@ class MultiRecordSubRecordField extends CompositeField {
     }
 
     /**
+     * @return string
+     */
+    public function getName() {
+        $result = parent::getName();
+        $result = rtrim($result, '__');
+        return $result;
+    }
+
+    /**
      * @return boolean
      */
     public function getCanSort() {
@@ -85,6 +94,34 @@ class MultiRecordSubRecordField extends CompositeField {
     }
 
     /**
+     * @return FieldList
+     */
+    public function Actions() {
+        $actions = new FieldList;
+
+        $record = $this->getRecord();
+        $showDeleteButton = (!$record || !$record->exists() || $record->canDelete());
+
+        // Setup delete button
+        if ($showDeleteButton)
+        {
+            // Add delete button
+            $deleteButton = FormAction::create('delete', 'Delete');
+            $deleteButton->setUseButtonTag(true);
+            $deleteButton->addExtraClass('multirecordfield-delete-button js-multirecordfield-delete');
+            $actions->push($deleteButton);
+
+            // Add undo button (you only need undo with delete)
+            $deleteButton = FormAction::create('undodelete', 'Restore');
+            $deleteButton->setUseButtonTag(true);
+            $deleteButton->addExtraClass('multirecordfield-undo-button js-multirecordfield-undo');
+            $actions->push($deleteButton);
+        }
+
+        return $actions;
+    }
+
+    /**
      * @return ToggleCompositeField
      */
     public function ToggleCompositeField() {
@@ -92,7 +129,9 @@ class MultiRecordSubRecordField extends CompositeField {
             $title = $this->Title();
             $record = $this->getRecord();
             $recordClass = $record->class;
-            $this->toggleCompositeField = ToggleCompositeField::create('CompositeHeader_'.$recordClass.$this->getFieldID(), $title, $this->getChildren());
+            $field = ToggleCompositeField::create('CompositeHeader_'.$recordClass.$this->getFieldID(), $title, $this->getChildren());
+            $field->addExtraClass('multirecordfield-togglecompositefield js-multirecordfield-togglecompositefield');
+            $this->toggleCompositeField = $field;
         }
         return $this->toggleCompositeField;
     }
@@ -133,6 +172,16 @@ class MultiRecordSubRecordField extends CompositeField {
             $parent = $this->getParent();
             if (!$parent || !is_object($parent) || !$parent instanceof MultiRecordField) {
                 throw new LogicException(__CLASS__.'::'.__FUNCTION__.': Invalid $this->parent property. Ensure it\'s set by MultiRecordField.');
+            }
+
+            // Setup actions
+            $actions = $this->Actions();
+            if ($actions && $actions->count())
+            {
+                foreach ($actions as $action) 
+                {
+                    $this->push($action);
+                }
             }
 
             // Prepare ToggleCompositeField

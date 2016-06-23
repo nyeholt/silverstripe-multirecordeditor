@@ -699,7 +699,7 @@ class MultiRecordField extends FormField {
 
         // Add heading field / Togglable composite field with heading
         $recordID = $this->getFieldID($record);
-        $subRecordField = MultiRecordSubRecordField::create('MultiRecordSubRecordField'.$recordID, $recordSectionTitle, null);
+        $subRecordField = MultiRecordSubRecordField::create('', $recordSectionTitle, null);
         $subRecordField->setParent($this);
         $subRecordField->setRecord($record);
 
@@ -864,6 +864,7 @@ class MultiRecordField extends FormField {
 
     private static $_new_records_to_write = null;
     private static $_existing_records_to_write = null;
+    private static $_records_to_delete = null;
     public function saveInto(\DataObjectInterface $record)
     {
         $class_id_field = $this->Value();
@@ -929,6 +930,15 @@ class MultiRecordField extends FormField {
                         $subRecord = $flatList[$id];
                     }
 
+                    // Detect if record was deleted
+                    if (isset($subRecordData['multirecordfield_delete']) && $subRecordData['multirecordfield_delete'])
+                    {
+                        if ($subRecord && $subRecord->exists()) {
+                            self::$_records_to_delete[] = $subRecord;
+                        }
+                        continue;
+                    }
+
                     // maybetodo(Jake): if performance is sluggish, make any new records share
                     //             the same fields as they should all output the same.
                     //             (ie. record->ID == 0 to cache fields)
@@ -965,18 +975,6 @@ class MultiRecordField extends FormField {
                         //             potentially. Must test this or defer extensions of 'FileField' to 'saveInto' later.
                         $field->saveInto($subRecord);
                         $field->MultiRecordField_SavedInto = true;
-                    }
-
-                    // NOTE(Jake): FileAttachmentField uses a hack for deleting records, meaning sometimes
-                    //             saveInto() won't be called due to the structure of the SS_HTTPRequest postVar name.
-                    foreach ($fields as $fieldName => $field)
-                    {
-                        if ($field instanceof FileAttachmentField && !$field->MultiRecordField_SavedInto)
-                        {
-                            $field->MultiRecordEditing_Name = $this->getFieldName($field->getName(), $subRecord);
-                            $field->saveInto($subRecord);
-                            $field->MultiRecordField_SavedInto = true;
-                        }
                     }
 
                     // Handle sort if its not manually handled on the form
@@ -1096,6 +1094,7 @@ class MultiRecordField extends FormField {
             // Save all fields, including nested MultiRecordField's
             self::$_new_records_to_write = array();
             self::$_existing_records_to_write = array();
+            self::$_records_to_delete = array();
             $this->MultiRecordEditing_Name = $this->getName();
 
             foreach ($relation_class_id_field as $relation => $class_id_field)
@@ -1142,6 +1141,14 @@ class MultiRecordField extends FormField {
                 if (!$subRecord->canEdit())
                 {
                     $recordsPermissionUnable['canEdit'][$subRecord->class][$subRecord->ID] = true;
+                }
+            }
+            foreach (self::$_records_to_delete as $subRecord)
+            {
+                // Check each record deleting to see if you can delete them
+                if (!$subRecord->canDelete())
+                {
+                    $recordsPermissionUnable['canDelete'][$subRecord->class][$subRecord->ID] = true;
                 }
             }
             if ($recordsPermissionUnable)
@@ -1199,6 +1206,12 @@ class MultiRecordField extends FormField {
                 // NOTE(Jake): Records are checked above to see if they've been changed.
                 //             If they haven't been changed, they're removed from the 'self::$_existing_records_to_write' list.
                 $subRecord->write();
+            }
+
+            // Remove deleted items
+            foreach (self::$_records_to_delete as $subRecord) 
+            {
+                $subRecord->delete();
             }
         }
     }

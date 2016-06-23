@@ -193,6 +193,58 @@
 			}
 		});
 
+		$('input.js-multirecordfield-delete, button.js-multirecordfield-delete, a.js-multirecordfield-delete').entwine({
+			onclick: function(e) {
+				e.preventDefault();
+
+				var self = this[0],
+					$self = $(self),
+				    $thisItem = $self.parents('.js-multirecordfield-list-item').first();
+
+				if ($thisItem.hasClass('is-deleted'))
+				{
+					return;
+				}
+
+				var id = $thisItem.data('id').toString();
+				/*if (id && id.indexOf('new') > -1)
+				{
+					// no-op
+				}
+				else
+				{*/
+					var $field = $self.parents('.js-multirecordfield-field').first();
+					// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
+					//			   sort fields in nested MultiRecordEditingField's.
+					var $deletedList = $field.find('.js-multirecordfield-deleted-list').first();
+					var name = $thisItem.data('name')+'__multirecordfield_delete';
+					var $el = $('<input type="hidden" name="'+name+'" value="1" />').appendTo($deletedList);
+					$thisItem.data('delete-input', $el);
+				//}
+				$thisItem.addClass('is-deleted');
+			}
+		});
+
+		$('input.js-multirecordfield-undo, button.js-multirecordfield-undo, a.js-multirecordfield-undo').entwine({
+			onclick: function(e) {
+				e.preventDefault();
+
+				var self = this[0],
+					$self = $(self),
+					$thisItem = $self.parents('.js-multirecordfield-list-item').first();
+
+				if ($thisItem.hasClass('is-deleted'))
+				{
+					var $inputDelete = $thisItem.data('delete-input');
+					if ($inputDelete)
+					{
+						$inputDelete.remove();
+					}
+					$thisItem.removeClass('is-deleted');
+				}
+			}
+		});
+
 		$('input.js-multirecordfield-add-inline, button.js-multirecordfield-add-inline').entwine({
 			onclick: function(e) {
 				e.preventDefault();

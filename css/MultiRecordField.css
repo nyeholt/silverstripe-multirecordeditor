@@ -14,6 +14,23 @@
 	border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px;
 }
 
+/* Undo Button */
+.multirecordfield-subrecordfield.is-deleted .field {
+	display: none;
+}
+
+.multirecordfield-undo-button {
+	display: none;
+}
+
+.multirecordfield-subrecordfield.is-deleted .multirecordfield-delete-button {
+	display: none;
+}
+
+.multirecordfield-subrecordfield.is-deleted .multirecordfield-undo-button {
+	display: block;
+}
+
 /* Loading */
 .multirecordfield-loading {
 	position: relative;
