@@ -1,6 +1,6 @@
-# Multi Record Editing field
+# Multi Record Field
 
-A field for editing multiple fields in a single editing interface. 
+A field for editing multiple records in a single form.
 
 ## Requirements
 
@@ -11,17 +11,6 @@ A field for editing multiple fields in a single editing interface.
 
 ## License
 See [License](license.md)
-
-## Problem being solved
-
-In some sites, it is desirable to remove some complexity from the editing 
-process around managing objects related to pages, and only allow editing of
-those objects instead of full control over adding and removing them. 
-
-By making a gridfield available for power users to add, re-order and remove 
-objects, and then presenting just the editable fields for the objects to 
-content, both usage models can be catered for. 
-
 
 ## Documentation
  
@@ -92,20 +81,7 @@ class BasicContent extends DataObject
 
 ```
 
-Alternatively, the top level items may be inserted on separate tabs
-
-```php
-
-		// in Page::getCMSFields()
-		$i = 0;
-        foreach ($this->Cells() as $cell) {
-            $editor = MultiRecordField::create('ContentCellEditor' . (++$i), $cell->Title, ArrayList::create(array($cell)));
-            $editor->setUseToggles(false);
-            $fields->addFieldToTab('Root.' . $cell->Title, $editor);
-        }
-```
-
-**Multi-edit-ception?**
+**MultiRecordField Nesting**
 
 The `MultiRecordField` supports nesting of other 
 `MultiRecordField`s. When the field detects a `MultiRecordField` 
@@ -124,11 +100,10 @@ change the fields.
 
 ## Screenshots
 
-[tod0]
+[todo]
 
 ## Maintainers
 
 * Jake Bentvelzen (SilbinaryWolf) <jake@silverstripe.com.au>
-* Marcus Nyeholt <marcus@silverstripe.com.au>
  
 ## Bugtracker
