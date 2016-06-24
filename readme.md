@@ -38,12 +38,6 @@ class Page extends SiteTree {
         $editor = MultiRecordField::create('ContentCellEditor', 'Content Cells', $this->Cells());
         $fields->addFieldToTab('Root.ContentCells', $editor);
 
-        if (Permission::check('ADMIN')) {
-            $config = GridFieldConfig_RecordEditor::create();
-            $grid = GridField::create('Cells', 'Cells', $this->Cells(), $config);
-            $fields->addFieldToTab('Root.ContentCells', $grid);
-        }
-
         return $fields;
     }
 }
