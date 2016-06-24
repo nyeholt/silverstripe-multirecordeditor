@@ -118,6 +118,12 @@ class MultiRecordSubRecordField extends CompositeField {
             $actions->push($deleteButton);
         }
 
+        // Update action fields with button classes
+        $parent = $this->getParent();
+        if ($parent) {
+            $parent->applyButtonClasses($actions);
+        }
+
         return $actions;
     }
 

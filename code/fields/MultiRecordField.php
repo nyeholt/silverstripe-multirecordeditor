@@ -228,13 +228,7 @@ class MultiRecordField extends FormField {
             $subField = $dataFields[$subFieldName];
         }
 
-        // Re-write field names to be unique
-        // ie. 'Title' to be 'ElementArea__MultiRecordField__ElementGallery__Title'
-        foreach ($dataFields as $field)
-        {
-            $name = $this->getFieldName($field, $record);
-            $field->setName($name);
-        }
+        $this->applyUniqueFieldNames($fields, $record);
 
         // If set a sub-field, execute its action instead.
         if ($isSubFieldAction)
@@ -348,6 +342,26 @@ class MultiRecordField extends FormField {
      */
     public function setButtonClasses($classes) {
         $this->buttonClasses = $classes;
+        return $this;
+    }
+
+    /**
+     * Apply button classes to a fieldlist of actions
+     *
+    * @return \MultiRecordField
+     */
+    public function applyButtonClasses(FieldList $actions) {
+        $buttonClasses = $this->getButtonClasses();
+        if ($buttonClasses && $actions)
+        {
+            foreach ($actions as $actionField)
+            {
+                if ($actionField instanceof FormAction)
+                {
+                    $actionField->addExtraClass($buttonClasses);
+                }
+            }
+        }
         return $this;
     }
 
@@ -725,7 +739,7 @@ class MultiRecordField extends FormField {
 
             if ($field instanceof MultiRecordField) {
                 $field->depth = $this->depth + 1;
-                $action = $this->getActionName($field, $record);
+                $action = $this->getActionURL($field, $record);
                 $field->setAttribute('data-action', $action);
                 // NOTE(Jake): Unclear at time of writing (17-06-2016) if nested MultiRecordField should
                 //             inherit certain settings or not. Might add flag like 'setRecursiveOptions' later
@@ -761,7 +775,7 @@ class MultiRecordField extends FormField {
                 {
                     // Rewrite UploadField's "Select file" iframe to go through
                     // this field.
-                    $action = $this->getActionName($field, $record);
+                    $action = $this->getActionURL($field, $record);
 
                     $field = MultiRecordUploadField::cast($field);
                     $field->multiRecordAction = $action;
@@ -773,7 +787,7 @@ class MultiRecordField extends FormField {
 
                     // Support for Unclecheese's Dropzone module
                     // @see: https://github.com/unclecheese/silverstripe-dropzone/tree/1.2.3
-                    $action = $this->getActionName($field, $record);
+                    $action = $this->getActionURL($field, $record);
                     $field = MultiRecordFileAttachmentField::cast($field);
                     $field->multiRecordAction = $action;
 
@@ -812,9 +826,9 @@ class MultiRecordField extends FormField {
      * @param DataObject $record
      * @return string
      */
-    public function getActionName($field, $record)
+    public function getActionURL($field, $record)
     {
-        // Example of data
+        // Example of input data
         // ---------------
         //  Level 1 Nest:
         //  -------------
@@ -825,7 +839,7 @@ class MultiRecordField extends FormField {
         //                     [5] => MultiRecordField [6] => ElementGallery_Item [7] => new_2 [8] => Items) 
         // 
         //
-        $nameData = $this->getFieldName($field, $record);
+        $nameData = $this->getUniqueFieldName($field, $record);
         $nameData = explode('__', $nameData);
         $nameDataCount = count($nameData);
         $action = $nameData[0];
@@ -848,11 +862,41 @@ class MultiRecordField extends FormField {
     }
 
     /**
+     * Re-write field names to be unique
+     * ie. 'Title' to be 'ElementArea__MultiRecordField__ElementGallery__Title'
+     *
+     * @return \MultiRecordField
+     */
+    public function applyUniqueFieldNames($fields, $record)
+    {
+        $isReadonly = $this->isReadonly();
+        foreach ($fields->dataFields() as $field)
+        {
+            // Get all fields underneath/nested in MultiRecordSubRecordField
+            $name = $this->getUniqueFieldName($field, $record);
+            $field->setName($name);
+        }
+        foreach ($fields as $field)
+        {
+            // This loop is at a top level, so it should all technically just be
+            // MultiRecordSubRecordField's only.
+            if ($field instanceof MultiRecordSubRecordField) {
+                $name = $this->getUniqueFieldName($field, $record);
+                $field->setName($name);
+            }
+            if ($isReadonly) {
+                $fields->replaceField($field->getName(), $field = $field->performReadonlyTransformation());
+            }
+        }
+        return $this;
+    }
+
+    /**
      * @param string|FormField $field
      * @param DataObject $record
      * @return string
      */
-    protected function getFieldName($fieldOrFieldname, $record)
+    public function getUniqueFieldName($fieldOrFieldname, $record)
     {
         $name = $fieldOrFieldname instanceof FormField ? $fieldOrFieldname->getName() : $fieldOrFieldname;
         $recordID = $this->getFieldID($record);
@@ -968,7 +1012,7 @@ class MultiRecordField extends FormField {
                         }
                         // NOTE(Jake): Added for FileAttachmentField as it uses the name used in the request for 
                         //             file deletion.
-                        $field->MultiRecordEditing_Name = $this->getFieldName($field->getName(), $subRecord);
+                        $field->MultiRecordEditing_Name = $this->getUniqueFieldName($field->getName(), $subRecord);
                         $field->setValue($value);
                         // todo(Jake): Some field types (ie. UploadField/FileAttachmentField) directly modify the record
                         //             on 'saveInto', meaning people -could- circumvent certain permission checks
@@ -1253,17 +1297,7 @@ class MultiRecordField extends FormField {
 
         // Update FormAction fields with button classes
         // todo(Jake): Find a better location for applying this
-        $buttonClasses = $this->getButtonClasses();
-        if ($buttonClasses)
-        {
-            foreach ($this->actions as $actionField)
-            {
-                if ($actionField instanceof FormAction)
-                {
-                    $actionField->addExtraClass($buttonClasses);
-                }
-            }
-        }
+        $this->applyButtonClasses($this->actions);
 
         return $this->actions;
     }
@@ -1395,8 +1429,7 @@ class MultiRecordField extends FormField {
         if (!$this->preparedForRender) 
         {
             $this->preparedForRender = true;
-            $readonly = $this->isReadonly();
-            if (!$readonly && $this->depth == 1)
+            if (!$this->isReadonly() && $this->depth == 1)
             {
                 // NOTE(Jake): jQuery.ondemand is required to allow FormField classes to add their own
                 //             Requirements::javascript on-the-fly.
@@ -1493,21 +1526,9 @@ class MultiRecordField extends FormField {
             foreach ($this->list as $record)
             {
                 $recordFields = $this->getRecordDataFields($record);
-                // Re-write field names to be unique
-                // ie. 'Title' to be 'ElementArea__MultiRecordField__ElementGallery__Title'
-                foreach ($recordFields->dataFields() as $field)
-                {
-                    $name = $this->getFieldName($field, $record);
-                    $field->setName($name);
-                }
+                $this->applyUniqueFieldNames($recordFields, $record);
                 foreach ($recordFields as $field)
                 {
-                    if ($field instanceof MultiRecordSubRecordField) {
-                        $field->setName($this->getFieldName($field, $record));
-                    }
-                    if ($readonly) {
-                        $field = $field->performReadonlyTransformation();
-                    }
                     $this->children->push($field);
                 }
             }

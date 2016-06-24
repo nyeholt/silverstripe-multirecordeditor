@@ -15,14 +15,8 @@
 }
 
 /* Undo Button */
-.multirecordfield-subrecordfield.is-deleted .field {
-	display: none;
-}
-
-.multirecordfield-undo-button {
-	display: none;
-}
-
+.multirecordfield-subrecordfield .multirecordfield-undo-button,
+.multirecordfield-subrecordfield.is-deleted .field,
 .multirecordfield-subrecordfield.is-deleted .multirecordfield-delete-button {
 	display: none;
 }
