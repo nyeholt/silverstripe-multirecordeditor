@@ -690,6 +690,7 @@ class MultiRecordField extends FormField {
 
         // Set heading (ie. 'My Record (Draft)')
         $titleFieldName = $this->getTitleField();
+        $status = '';
         if (!$titleFieldName)
         {
             $recordSectionTitle = $record->MultiRecordEditingTitle;
@@ -697,9 +698,6 @@ class MultiRecordField extends FormField {
             {
                 $recordSectionTitle = $record->Title;
                 $status = ($recordExists) ? $record->CMSPublishedState : 'New';
-                if ($status) {
-                    $recordSectionTitle .= ' ('.$status.')';
-                }
             }
         }
         else
@@ -710,6 +708,9 @@ class MultiRecordField extends FormField {
             // NOTE(Jake): Ensures no title'd ToggleCompositeField's have a proper height.
             $recordSectionTitle = '&nbsp;';
         }
+        $recordSectionTitle .= ' <span class="js-multirecordfield-title-status">';
+        $recordSectionTitle .= ($status) ? '('.$status.')' : '';
+        $recordSectionTitle .= '</span>';
 
         // Add heading field / Togglable composite field with heading
         $recordID = $this->getFieldID($record);
@@ -771,16 +772,7 @@ class MultiRecordField extends FormField {
                     }
                 }
 
-                if ($field instanceof UploadField) 
-                {
-                    // Rewrite UploadField's "Select file" iframe to go through
-                    // this field.
-                    $action = $this->getActionURL($field, $record);
-
-                    $field = MultiRecordUploadField::cast($field);
-                    $field->multiRecordAction = $action;
-                }
-                else if ($field instanceof FileAttachmentField) 
+                if ($field instanceof FileAttachmentField) 
                 {
                     // fix(Jake)
                     // todo(Jake): Fix deletion
@@ -802,6 +794,20 @@ class MultiRecordField extends FormField {
                             $field->setValue($val, $record);
                         }
                     }
+                }
+                else if (class_exists('MultiRecord'.$field->class))
+                {
+                    // Handle generic case (ie. UploadField)
+                    // Where we just want to override value returned from $field->Link()
+                    // so FormField actions work.
+                    $class = 'MultiRecord'.$field->class;
+                    $fieldCopy = $class::create($field->getName(), $field->Title());
+                    foreach (get_object_vars($field) as $property => $value)
+                    {
+                        $fieldCopy->$property = $value;
+                    }
+                    $fieldCopy->multiRecordAction = $this->getActionURL($field, $record);
+                    $field = $fieldCopy;
                 }
                 // NOTE(Jake): Should probably add an ->extend() so other modules can monkey patch fields.
                 //             Will wait to see if its needed.
