@@ -1,6 +1,25 @@
 <?php
 
 /**
+ * For tracking field (sent/expanded names) and values in
+ * 'saveInto'
+ */
+class MultiRecordFieldData {
+    /**
+     * Keep the original requested name for the field as FileAttachmentField
+     * needs it for processing deleted items.
+     *
+     * @var string
+     */
+    public $requestName;
+
+    /** 
+     * @var mixed
+     */
+    public $value;
+}
+
+/**
  * @author Jake Bentvelzen
  */
 class MultiRecordField extends FormField {
@@ -18,13 +37,6 @@ class MultiRecordField extends FormField {
      */
     const NEW_RECORD = 0;
     const NEW_LIST = 1;
-
-    /**
-     * For tracking field (sent/expanded names) and values in
-     * 'saveInto'
-     */
-    const FIELD_NAME = 0;
-    const FIELD_VALUE = 1;
 
     /**
      * Set variables or call functions on certain fields underneath this field.
@@ -362,6 +374,89 @@ class MultiRecordField extends FormField {
                 }
             }
         }
+        return $this;
+    }
+
+    /**
+     * @param array value
+     * @param array data Passed from Form::loadDataFrom for composite fields to act on data
+     * @return \MultiRecordField
+     */
+    public function setValue($value, $formData = array()) {
+        if (!$value && $formData && is_array($formData))
+        {
+            // NOTE(Jake): The call stack is: 
+            //                  $field->setValue($val, $formData);
+            //                  $form->loadDataFrom($data)
+            //                  $form->httpSubmission($request);
+            if ($formData)
+            {
+                $relation_class_id_field = array();
+                $relationFieldName = $this->getName();
+
+                foreach ($formData as $name => $value)
+                {
+                    // If fieldName is the -very- first part of the string
+                    // NOTE(Jake): Check is required here as we're pulling straight from $request
+                    if (strpos($name, $relationFieldName) === 0)
+                    {
+                        static $FIELD_PARAMETERS_SIZE = 5;
+
+                        $fieldParameters = explode('__', $name);
+                        $fieldParametersCount = count($fieldParameters);
+                        if ($fieldParametersCount < $FIELD_PARAMETERS_SIZE) {
+                            // You expect a name like 'ElementArea__MultiRecordField__ElementGallery__new_1__Title'
+                            // So ensure 5 parameters exist in the name, otherwise continue.
+                            continue;
+                        }
+                        $signature = $fieldParameters[1];
+                        if ($signature !== 'MultiRecordField')
+                        {
+                            return $this->httpError(400, 'Invalid signature in "MultiRecordField". Malformed MultiRecordField sub-field or hack attempt.');
+                        }
+
+                        $parentFieldName = $fieldParameters[0];
+                        $class = $fieldParameters[2];
+                        $new_id = $fieldParameters[3];
+                        $fieldName = $fieldParameters[4];
+
+                        //
+                        $fieldData = new MultiRecordFieldData;
+                        $fieldData->requestName = $name;
+                        $fieldData->value = $value;
+                        if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
+                        {
+                            // 1st Nest Level
+                            $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = $fieldData; 
+                        }
+                        else
+                        {
+                            // 2nd, 3rd, nth Nest Level
+                            $relationArray = &$relation_class_id_field;
+                            for ($i = 0; $i < $fieldParametersCount - 1; $i += $FIELD_PARAMETERS_SIZE - 1)
+                            {
+                                $parentFieldName = $fieldParameters[$i];
+                                $signature = $fieldParameters[$i+1];
+                                $class = $fieldParameters[$i+2];
+                                $new_id = $fieldParameters[$i+3];
+                                $fieldName = $fieldParameters[$i+4];
+                                if (!isset($relationArray[$parentFieldName][$class][$new_id])) {
+                                    $relationArray[$parentFieldName][$class][$new_id] = array();
+                                }
+                                $relationArray = &$relationArray[$parentFieldName][$class][$new_id];
+                            }
+                            $relationArray[$fieldName] = $fieldData; 
+                            unset($relationArray);
+                        }
+                    }
+                }
+
+                // Set value
+                $this->value = reset($relation_class_id_field);
+                return $this;
+            }
+        }
+        $this->value = $value;
         return $this;
     }
 
@@ -917,243 +1012,164 @@ class MultiRecordField extends FormField {
     private static $_records_to_delete = null;
     public function saveInto(\DataObjectInterface $record)
     {
-        $class_id_field = $this->Value();
-        if (is_array($class_id_field))
+        if ($this->depth == 1)
         {
-            if (!$class_id_field)
-            {
-                throw new Exception('No data passed into '.__CLASS__.'::'.__FUNCTION__.'.');
-            }
-
-            $list = $this->list;
-            $flatList = array();
-            if ($list instanceof DataList) 
-            {
-                $flatList = array();
-                foreach ($list as $r) 
-                {
-                    $flatList[$r->ID] = $r;
-                }
-            }
-            else if (!$list instanceof UnsavedRelationList)
-            {
-                throw new Exception('List class "'.$list->class.'" not supported by '.__CLASS__);
-            }
-
-            $sortFieldName = $this->getSortFieldName();
-
-            foreach ($class_id_field as $class => $id_field)
-            {
-                // Create and add records to list
-                foreach ($id_field as $idString => $subRecordData)
-                {
-                    if (strpos($idString, 'o-multirecordediting') !== FALSE)
-                    {
-                        throw new Exception('Invalid template ID passed in ("'.$idString.'"). This should have been replaced by MultiRecordField.js. Is your JavaScript broken?');
-                    }
-                    $idParts = explode('_', $idString);
-                    $id = 0;
-                    $subRecord = null;
-                    if ($idParts[0] === 'new')
-                    {
-                        if (!isset($idParts[1]))
-                        {
-                            throw new Exception('Missing ID part of "new_" identifier.');
-                        }
-                        $id = (int)$idParts[1];
-                        if (!$id && $id > 0)
-                        {
-                            throw new Exception('Invalid ID part of "new_" identifier. Positive Non-Zero Integers only are accepted.');
-                        }
-
-                        // New record
-                        $subRecord = $class::create();
-                    }
-                    else
-                    {
-                        $id = $idParts[0];
-                        // Find existing
-                        $id = (int)$id;
-                        if (!isset($flatList[$id])) {
-                            throw new Exception('Record #'.$id.' on "'.$class.'" does not exist in this DataList context. (From ID string: '.$idString.')');
-                        }
-                        $subRecord = $flatList[$id];
-                    }
-
-                    // Detect if record was deleted
-                    if (isset($subRecordData['multirecordfield_delete']) && $subRecordData['multirecordfield_delete'])
-                    {
-                        if ($subRecord && $subRecord->exists()) {
-                            self::$_records_to_delete[] = $subRecord;
-                        }
-                        continue;
-                    }
-
-                    // maybetodo(Jake): if performance is sluggish, make any new records share
-                    //             the same fields as they should all output the same.
-                    //             (ie. record->ID == 0 to cache fields)
-                    $fields = $this->getRecordDataFields($subRecord);
-                    $fields = $fields->dataFields();
-                    if (!$fields) {
-                        throw new Exception($class.' is returning 0 fields.');
-                    }
-
-                    //
-                    foreach ($subRecordData as $fieldName => $fieldData)
-                    {
-                        if ($sortFieldName !== $fieldName && 
-                            !isset($fields[$fieldName]))
-                        {
-                            // todo(Jake): Say whether its missing the field from getCMSFields or getMultiRecordFields or etc.
-                            throw new Exception('Missing field "'.$fieldName.'" from "'.$subRecord->class.'" fields based on data sent from client. (Could be a hack attempt)');
-                        }
-                        $field = $fields[$fieldName];
-                        if (!$field instanceof MultiRecordField)
-                        {
-                            $value = $fieldData[self::FIELD_VALUE];
-                        }
-                        else
-                        {
-                            $value = $fieldData;
-                        }
-                        // NOTE(Jake): Added for FileAttachmentField as it uses the name used in the request for 
-                        //             file deletion.
-                        $field->MultiRecordEditing_Name = $this->getUniqueFieldName($field->getName(), $subRecord);
-                        $field->setValue($value);
-                        // todo(Jake): Some field types (ie. UploadField/FileAttachmentField) directly modify the record
-                        //             on 'saveInto', meaning people -could- circumvent certain permission checks
-                        //             potentially. Must test this or defer extensions of 'FileField' to 'saveInto' later.
-                        $field->saveInto($subRecord);
-                        $field->MultiRecordField_SavedInto = true;
-                    }
-
-                    // Handle sort if its not manually handled on the form
-                    if ($sortFieldName && !isset($fields[$sortFieldName]))
-                    {
-                        $newSortValue = $id; // Default to order added
-                        if (isset($subRecordData[$sortFieldName])) {
-                            $newSortValue = $subRecordData[$sortFieldName];
-                        }
-                        if ($newSortValue)
-                        {
-                            $subRecord->{$sortFieldName} = $newSortValue;
-                        }
-                    }
-
-                    // Check if sort value is invalid
-                    $sortValue = $subRecord->{$sortFieldName};
-                    if ($sortValue <= 0)
-                    {
-                        throw new Exception('Invalid sort value ('.$sortValue.') on #'.$subRecord->ID.' for class '.$subRecord->class.'. Sort value must be greater than 0.');
-                    }
-                    
-                    if (!$subRecord->doValidate())
-                    {
-                        throw new ValidationException('Failed validation on '.$subRecord->class.'::doValidate() on record #'.$subRecord->ID);
-                    }
-
-                    if ($subRecord->exists()) {
-                        self::$_existing_records_to_write[] = $subRecord;
-                    } else {
-                        // NOTE(Jake): I used to directly add the record to the list here, but
-                        //             if it's a HasManyList/ManyManyList, it will create the record
-                        //             before doing permission checks.
-                        self::$_new_records_to_write[] = array(
-                            self::NEW_RECORD => $subRecord,
-                            self::NEW_LIST   => $list,
-                        );
-                    }
-                }
-            }
-            return;
-        }
-
-        // Create and save new has_many/many_many records
-        /**
-         * @var SS_HTTPRequest
-         */
-        $request = $this->form->getRequest();
-        if ($request)
-        {
-            $relation_class_id_field = array();
-            $relationFieldName = $this->getName();
-
-            foreach ($request->requestVars() as $name => $value)
-            {
-                // If fieldName is the -very- first part of the string
-                // NOTE(Jake): Check is required here as we're pulling straight from $request
-                if (strpos($name, $relationFieldName) === 0)
-                {
-                    static $FIELD_PARAMETERS_SIZE = 5;
-
-                    $fieldParameters = explode('__', $name);
-                    $fieldParametersCount = count($fieldParameters);
-                    if ($fieldParametersCount < $FIELD_PARAMETERS_SIZE) {
-                        // You expect a name like 'ElementArea__MultiRecordField__ElementGallery__new_1__Title'
-                        // So ensure 5 parameters exist in the name, otherwise continue.
-                        continue;
-                    }
-                    $signature = $fieldParameters[1];
-                    if ($signature !== 'MultiRecordField')
-                    {
-                        return $this->httpError(400, 'Invalid signature in "MultiRecordField". Malformed MultiRecordField sub-field or hack attempt.');
-                    }
-
-                    $parentFieldName = $fieldParameters[0];
-                    $class = $fieldParameters[2];
-                    $new_id = $fieldParameters[3];
-                    $fieldName = $fieldParameters[4];
-
-                    //
-                    if ($fieldParametersCount == $FIELD_PARAMETERS_SIZE)
-                    {
-                        // 1st Nest Level
-                        $relation_class_id_field[$parentFieldName][$class][$new_id][$fieldName] = array(
-                            self::FIELD_NAME => $name,
-                            self::FIELD_VALUE => $value
-                        ); 
-                    }
-                    else
-                    {
-                        // 2nd, 3rd, nth Nest Level
-                        $relationArray = &$relation_class_id_field;
-                        for ($i = 0; $i < $fieldParametersCount - 1; $i += $FIELD_PARAMETERS_SIZE - 1)
-                        {
-                            $parentFieldName = $fieldParameters[$i];
-                            $signature = $fieldParameters[$i+1];
-                            $class = $fieldParameters[$i+2];
-                            $new_id = $fieldParameters[$i+3];
-                            $fieldName = $fieldParameters[$i+4];
-                            if (!isset($relationArray[$parentFieldName][$class][$new_id])) {
-                                $relationArray[$parentFieldName][$class][$new_id] = array();
-                            }
-                            $relationArray = &$relationArray[$parentFieldName][$class][$new_id];
-                        }
-                        $relationArray[$fieldName] = array(
-                            self::FIELD_NAME => $name,
-                            self::FIELD_VALUE => $value
-                        ); 
-                        unset($relationArray);
-                    }
-                }
-            }
-
-            // Debugging
-            //Debug::dump($relation_class_id_field); exit('Exited at: '.__CLASS__.'::'.__FUNCTION__);// Debug raw request information tree
-
-            // Save all fields, including nested MultiRecordField's
+            // Reset records to write for top-level MultiRecordField.
             self::$_new_records_to_write = array();
             self::$_existing_records_to_write = array();
             self::$_records_to_delete = array();
-            $this->MultiRecordEditing_Name = $this->getName();
+        }
 
-            foreach ($relation_class_id_field as $relation => $class_id_field)
+        $class_id_field = $this->Value();
+        if (!$class_id_field)
+        {
+            return $this;
+        }
+
+        $list = $this->list;
+        $flatList = array();
+        if ($list instanceof DataList) 
+        {
+            $flatList = array();
+            foreach ($list as $r) 
             {
-                $this->setValue($class_id_field);
-                $this->saveInto($record);
+                $flatList[$r->ID] = $r;
             }
-            $this->setValue(null);
+        }
+        else if (!$list instanceof UnsavedRelationList)
+        {
+            throw new Exception('List class "'.$list->class.'" not supported by '.__CLASS__);
+        }
 
+        $sortFieldName = $this->getSortFieldName();
+
+        foreach ($class_id_field as $class => $id_field)
+        {
+            // Create and add records to list
+            foreach ($id_field as $idString => $subRecordData)
+            {
+                if (strpos($idString, 'o-multirecordediting') !== FALSE)
+                {
+                    throw new Exception('Invalid template ID passed in ("'.$idString.'"). This should have been replaced by MultiRecordField.js. Is your JavaScript broken?');
+                }
+                $idParts = explode('_', $idString);
+                $id = 0;
+                $subRecord = null;
+                if ($idParts[0] === 'new')
+                {
+                    if (!isset($idParts[1]))
+                    {
+                        throw new Exception('Missing ID part of "new_" identifier.');
+                    }
+                    $id = (int)$idParts[1];
+                    if (!$id && $id > 0)
+                    {
+                        throw new Exception('Invalid ID part of "new_" identifier. Positive Non-Zero Integers only are accepted.');
+                    }
+
+                    // New record
+                    $subRecord = $class::create();
+                }
+                else
+                {
+                    $id = $idParts[0];
+                    // Find existing
+                    $id = (int)$id;
+                    if (!isset($flatList[$id])) {
+                        throw new Exception('Record #'.$id.' on "'.$class.'" does not exist in this DataList context. (From ID string: '.$idString.')');
+                    }
+                    $subRecord = $flatList[$id];
+                }
+
+                // Detect if record was deleted
+                if (isset($subRecordData['multirecordfield_delete']) && $subRecordData['multirecordfield_delete'])
+                {
+                    if ($subRecord && $subRecord->exists()) {
+                        self::$_records_to_delete[] = $subRecord;
+                    }
+                    continue;
+                }
+
+                // maybetodo(Jake): To improve performance, maybe add 'dumb fields' config where it just gets the fields available
+                //                  on an unsaved record and just re-uses them for each instance. Of course
+                //                  this means conditional fields based on parent values/db values wont work.
+                $fields = $this->getRecordDataFields($subRecord);
+                $fields = $fields->dataFields();
+                if (!$fields) {
+                    throw new Exception($class.' is returning 0 fields.');
+                }
+
+                //
+                foreach ($subRecordData as $fieldName => $fieldData)
+                {
+                    if ($sortFieldName !== $fieldName && 
+                        !isset($fields[$fieldName]))
+                    {
+                        // todo(Jake): Say whether its missing the field from getCMSFields or getMultiRecordFields or etc.
+                        throw new Exception('Missing field "'.$fieldName.'" from "'.$subRecord->class.'" fields based on data sent from client. (Could be a hack attempt)');
+                    }
+                    $field = $fields[$fieldName];
+                    if (!$field instanceof MultiRecordField)
+                    {
+                        $value = $fieldData->value;
+                    }
+                    else
+                    {
+                        $value = $fieldData;
+                    }
+                    // NOTE(Jake): Added for FileAttachmentField as it uses the name used in the request for 
+                    //             file deletion.
+                    $field->MultiRecordEditing_Name = $this->getUniqueFieldName($field->getName(), $subRecord);
+                    $field->setValue($value);
+                    // todo(Jake): Some field types (ie. UploadField/FileAttachmentField) directly modify the record
+                    //             on 'saveInto', meaning people -could- circumvent certain permission checks
+                    //             potentially. Must test this or defer extensions of 'FileField' to 'saveInto' later.
+                    $field->saveInto($subRecord);
+                    $field->MultiRecordField_SavedInto = true;
+                }
+
+                // Handle sort if its not manually handled on the form
+                if ($sortFieldName && !isset($fields[$sortFieldName]))
+                {
+                    $newSortValue = $id; // Default to order added
+                    if (isset($subRecordData[$sortFieldName])) {
+                        $newSortValue = $subRecordData[$sortFieldName];
+                    }
+                    if ($newSortValue)
+                    {
+                        $subRecord->{$sortFieldName} = $newSortValue;
+                    }
+                }
+
+                // Check if sort value is invalid
+                $sortValue = $subRecord->{$sortFieldName};
+                if ($sortValue <= 0)
+                {
+                    throw new Exception('Invalid sort value ('.$sortValue.') on #'.$subRecord->ID.' for class '.$subRecord->class.'. Sort value must be greater than 0.');
+                }
+                
+                if (!$subRecord->doValidate())
+                {
+                    throw new ValidationException('Failed validation on '.$subRecord->class.'::doValidate() on record #'.$subRecord->ID);
+                }
+
+                if ($subRecord->exists()) {
+                    self::$_existing_records_to_write[] = $subRecord;
+                } else {
+                    // NOTE(Jake): I used to directly add the record to the list here, but
+                    //             if it's a HasManyList/ManyManyList, it will create the record
+                    //             before doing permission checks.
+                    self::$_new_records_to_write[] = array(
+                        self::NEW_RECORD => $subRecord,
+                        self::NEW_LIST   => $list,
+                    );
+                }
+            }
+        }
+
+        // The top-most MutliRecordField handles all the permission checking/saving at once
+        if ($this->depth == 1)
+        {
             // Remove records from list that haven't been changed to avoid unnecessary 
             // permission check and ->write overhead
             foreach (self::$_existing_records_to_write as $i => $subRecord)
