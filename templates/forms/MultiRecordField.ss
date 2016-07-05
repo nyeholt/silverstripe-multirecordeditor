@@ -1,4 +1,4 @@
-<div class="field {$ExtraClass} js-multirecordfield-field">
+<div class="field js-multirecordfield-field {$ExtraClass}">
 	<div class="clear"></div>
 	<div class="multirecordfield-errors-holder">
 		<%-- JavaScript errors get printed here --%>

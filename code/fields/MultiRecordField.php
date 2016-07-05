@@ -1562,11 +1562,14 @@ class MultiRecordField extends FormField {
 
     public function FieldHolder($properties = array()) {
         $this->prepareForRender();
+        $this->addExtraClass($this->Type().'_holder');
         return parent::FieldHolder($properties);
     }
 
     public function Field($properties = array()) {
         $this->prepareForRender();
+        $this->removeExtraClass($this->Type().'_holder');
+        $this->addExtraClass($this->Type().'_field');
         return parent::Field($properties);
     }
 }
