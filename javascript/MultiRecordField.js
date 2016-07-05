@@ -1,4 +1,6 @@
 (function($) {
+	"use strict";
+
 	$.entwine('ss.multirecordediting', function($) {
 		//
 		// Template System
@@ -318,8 +320,11 @@
 
 				if (!hasTemplate(templateID))
 				{
-					$actions = $self.parents('.js-multirecordfield-actions');
-					$loader = $actions.find('.js-multirecordfield-loading');
+					var $field = $self.parents('.js-multirecordfield-field').first();
+					var $errors = $field.find('.js-multirecordfield-errors');
+
+					var $actions = $self.parents('.js-multirecordfield-actions');
+					var $loader = $actions.find('.js-multirecordfield-loading');
 					$self.addClass('is-loading');
 					$loader.addClass('is-loading');
 
@@ -329,13 +334,15 @@
 						success: function(data) {
 							setTemplate(templateID, data);
 							callback.apply(this, arguments);
+							$errors.html('');
 						},
 						error: function(xhr, status) {
 							xhr.statusText = xhr.responseText;
+							$errors.html(xhr.statusText);
 						},
 						complete: function() {
-							$self.removeClass('is-loading');
 							$loader.removeClass('is-loading');
+							$self.removeClass('is-loading');
 						}
 					});
 				}

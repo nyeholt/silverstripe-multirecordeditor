@@ -205,7 +205,7 @@ class MultiRecordField extends FormField {
         if ($recordIDOrNew === null || $recordIDOrNew === 'new')
         {
             $record = $class::create();
-            if (!$record->canCreate())
+            if (!$record->canCreate(Member::currentUser()))
             {
                 return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot create "'.$class.'" class type.');
             }
@@ -218,7 +218,7 @@ class MultiRecordField extends FormField {
                 return $this->httpError(400, 'Malformed record ID in sub-field action was supplied ('.$class.' #'.$recordIDOrNew.').');
             }
             $record = $class::get()->byID($recordIDOrNew);
-            if (!$record->canEdit())
+            if (!$record->canEdit(Member::currentUser()))
             {
                 return $this->httpError(400, 'Invalid permissions. Current user (#'.Member::currentUserID().') cannot edit "'.$class.'" #'.$recordIDOrNew.' class type.');
             }
@@ -1076,6 +1076,8 @@ class MultiRecordField extends FormField {
                     // Find existing
                     $id = (int)$id;
                     if (!isset($flatList[$id])) {
+                        Versioned::reading_stage('Stage');
+                        Debug::dump(Versioned::current_stage()); exit;
                         throw new Exception('Record #'.$id.' on "'.$class.'" does not exist in this DataList context. (From ID string: '.$idString.')');
                     }
                     $subRecord = $flatList[$id];
@@ -1191,12 +1193,13 @@ class MultiRecordField extends FormField {
             // Check permissions on everything at once
             // (includes records added in nested-nested-nested-etc MultiRecordField's)
             //
+            $currentMember = Member::currentUser();
             $recordsPermissionUnable = array();
             foreach (self::$_new_records_to_write as $subRecordAndList) 
             {
                 $subRecord = $subRecordAndList[self::NEW_RECORD];
                 // Check each new record to see if you can create them
-                if (!$subRecord->canCreate()) 
+                if (!$subRecord->canCreate($currentMember)) 
                 {
                     $recordsPermissionUnable['canCreate'][$subRecord->class][$subRecord->ID] = true;
                 }
@@ -1204,7 +1207,7 @@ class MultiRecordField extends FormField {
             foreach (self::$_existing_records_to_write as $subRecord) 
             {
                 // Check each existing record to see if you can edit them
-                if (!$subRecord->canEdit())
+                if (!$subRecord->canEdit($currentMember))
                 {
                     $recordsPermissionUnable['canEdit'][$subRecord->class][$subRecord->ID] = true;
                 }
@@ -1212,7 +1215,7 @@ class MultiRecordField extends FormField {
             foreach (self::$_records_to_delete as $subRecord)
             {
                 // Check each record deleting to see if you can delete them
-                if (!$subRecord->canDelete())
+                if (!$subRecord->canDelete($currentMember))
                 {
                     $recordsPermissionUnable['canDelete'][$subRecord->class][$subRecord->ID] = true;
                 }
