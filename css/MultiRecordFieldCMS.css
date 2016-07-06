@@ -35,6 +35,11 @@ div.multirecordfield-classname {
 	padding-bottom: 0;
 }
 
+.field.multirecord_field .mceEditor + .mceEditor {
+	/* Hack to stop HTMLEditorField double up bug in SS 3.2 */
+	display: none !important;
+}
+
 /* Skin */
 .cms .ui-button.multirecordfield-delete-button {
 	color: #fff;
