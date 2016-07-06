@@ -601,6 +601,11 @@ class MultiRecordField extends FormField {
         if ($record && $record->ID) {
             return (int)$record->ID;
         }
+        if ($record && $record->MultiRecordField_NewID) {
+            // Allow setting 'MultiRecordField_NewID' to say 'new_1' or 'new_2'
+            // to restore fields that failed validation.
+            return $record->MultiRecordField_NewID;
+        }
         // NOTE(Jake): Not '{%=o.multirecordediting.id%}' with tmpl.js because SS strips '{', '}' and replaces '.' with '-'
         return 'o-multirecordediting-'.$this->depth.'-id';
     }
@@ -751,6 +756,10 @@ class MultiRecordField extends FormField {
             throw new Exception($errorMessage.'. This is due '.$record->class.'::'.$fieldsFunction.' not returning a populated FieldList.');
         }
 
+        // 
+        $recordExists = $record->exists();
+        $recordShouldSetValue = ($recordExists || $record->MultiRecordField_NewID);
+
         // Setup sort field
         $sortFieldName = $this->getSortFieldName();
         if ($sortFieldName)
@@ -762,7 +771,7 @@ class MultiRecordField extends FormField {
             }
             if (!$sortField)
             {
-                $sortValue = ($record && $record->exists()) ? $record->$sortFieldName : self::SORT_INVALID;
+                $sortValue = ($recordShouldSetValue) ? $record->$sortFieldName : self::SORT_INVALID;
                 $sortField = HiddenField::create($sortFieldName);
                 if ($sortField instanceof HiddenField) {
                     $sortField->setAttribute('value', $sortValue);
@@ -779,9 +788,6 @@ class MultiRecordField extends FormField {
             }
             $sortField->addExtraClass('js-multirecordfield-sort-field');
         }
-
-        //
-        $recordExists = $record->exists();
 
         // Set heading (ie. 'My Record (Draft)')
         $titleFieldName = $this->getTitleField();
@@ -808,7 +814,6 @@ class MultiRecordField extends FormField {
         $recordSectionTitle .= '</span>';
 
         // Add heading field / Togglable composite field with heading
-        $recordID = $this->getFieldID($record);
         $subRecordField = MultiRecordSubRecordField::create('', $recordSectionTitle, null);
         $subRecordField->setParent($this);
         $subRecordField->setRecord($record);
@@ -819,8 +824,8 @@ class MultiRecordField extends FormField {
         {
             $fieldName = $field->getName();
 
-            // Set value from record
-            if ($recordExists)
+            // Set value from record if it exists or if re-loading data after failed form validation
+            if ($recordShouldSetValue)
             {
                 $val = null;
                 if (isset($record->$fieldName) 
@@ -879,7 +884,7 @@ class MultiRecordField extends FormField {
                     $field->multiRecordAction = $action;
 
                     // Fix $field->Value()
-                    if ($recordExists && !$val && isset($record->{$fieldName.'ID'}))
+                    if ($recordShouldSetValue && !$val && isset($record->{$fieldName.'ID'}))
                     {
                         // NOTE(Jake): This check was added for 'FileAttachmentField'.
                         //             Putting this outside of this 'instanceof' if-statement will break UploadField.
@@ -953,7 +958,7 @@ class MultiRecordField extends FormField {
             }
             $class = $nameData[$i + 1];
             $id = $nameData[$i + 2];
-            if (strpos($id, 'o-multirecordediting') !== FALSE) {
+            if ($record->MultiRecordField_NewID || strpos($id, 'o-multirecordediting') !== FALSE) {
                 $id = 'new';
             }
             $subFieldName = $nameData[$i + 3];
@@ -1562,10 +1567,91 @@ class MultiRecordField extends FormField {
                 }
             }
 
+            // Get existing records to add fields for
+            $recordList = null;
+            if ($this->list && !$this->list instanceof UnsavedRelationList) {
+                $recordList = new ArrayList($this->list->toArray());
+            } else {
+                $recordList = new ArrayList;
+            }
+
+            //
+            // If the user validation failed, Value() will be populated with some records
+            // that have 'new_' IDs, so handle them.
+            //
+            $value = $this->Value();
+            if ($value && is_array($value))
+            {
+                // todo(Jake): Could be a potential vector for attack. Look into this.
+                foreach ($value as $class => $recordDatas) 
+                {
+                    foreach ($recordDatas as $new_id => $fieldData) 
+                    {
+                        if (substr($new_id, 0, 4) === 'new_')
+                        {
+                            $record = $class::create();
+                            $record->MultiRecordField_NewID = $new_id;
+                            foreach ($fieldData as $fieldName => $fieldInfo) 
+                            {
+                                if (is_array($fieldInfo)) {
+                                    $record->$fieldName = $fieldInfo;
+                                } else {
+                                    $record->$fieldName = $fieldInfo->value;
+                                }
+                            }
+                            $recordList->push($record);
+                            /*$recordFields = $this->getRecordDataFields($record);
+                            $recordDataFields = $recordFields->dataFields();
+                            Debug::dump(array_keys($recordDataFields)); exit;
+                            foreach ($fieldData as $fieldName => $fieldInfo) 
+                            {
+                                if (isset($recordDataFields[$fieldName]))
+                                {
+                                    $field = $recordDataFields[$fieldName];
+                                    if ($field instanceof MultiRecordField) {
+                                        $field->setValue($fieldInfo);
+                                    } else {
+                                        $field->setValue($fieldInfo->value);
+                                    }
+                                }
+                            }
+                            foreach ($recordFields as $field) {
+                                if ($field instanceof MultiRecordSubRecordField) {
+                                    $field->setRecord($record);
+                                }
+                            }
+                            $this->applyUniqueFieldNames($recordFields, $record);
+                            foreach ($recordFields as $field)
+                            {
+                                $this->children->push($field);
+                            }*/
+                        }
+                        else if ($new_id == (string)(int)$new_id)
+                        {
+                            // NOTE(Jake): "o-multirecordediting-1-id" == 0 // evaluates true in PHP 5.5.12, 
+                            //             So we need to make it a string again to avoid that dumb case.
+                            $new_id = (int)$new_id;
+                            throw new Exception('todo, handle existing stuff that fails validation. ('.$new_id.')');
+                        }
+                        else
+                        {
+                            throw new Exception('Validation failed and unable to restore fields with invalid ID. ('.$new_id.')');
+                        }
+                    }
+                }
+
+                // Ensure all the records are sorted properly
+                $sortFieldName = $this->getSortFieldName();
+                if ($sortFieldName)
+                {
+                    $recordList = $recordList->sort($sortFieldName);
+                }
+            }
+
             //
             // Return all fields from the records editing
             //
-            foreach ($this->list as $record)
+            foreach ($recordList as $record)
             {
                 $recordFields = $this->getRecordDataFields($record);
                 $this->applyUniqueFieldNames($recordFields, $record);

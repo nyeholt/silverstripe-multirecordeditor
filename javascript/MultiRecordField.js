@@ -209,20 +209,13 @@
 				}
 
 				var id = $thisItem.data('id').toString();
-				/*if (id && id.indexOf('new') > -1)
-				{
-					// no-op
-				}
-				else
-				{*/
-					var $field = $self.parents('.js-multirecordfield-field').first();
-					// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
-					//			   sort fields in nested MultiRecordEditingField's.
-					var $deletedList = $field.find('.js-multirecordfield-deleted-list').first();
-					var name = $thisItem.data('name')+'__multirecordfield_delete';
-					var $el = $('<input type="hidden" name="'+name+'" value="1" />').appendTo($deletedList);
-					$thisItem.data('delete-input', $el);
-				//}
+				var $field = $self.parents('.js-multirecordfield-field').first();
+				// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
+				//			   sort fields in nested MultiRecordEditingField's.
+				var $deletedList = $field.find('.js-multirecordfield-deleted-list').first();
+				var name = $thisItem.data('name')+'__multirecordfield_delete';
+				var $el = $('<input type="hidden" name="'+name+'" value="1" />').appendTo($deletedList);
+				$thisItem.data('delete-input', $el);
 				$thisItem.addClass('is-deleted');
 			}
 		});
@@ -274,8 +267,28 @@
 					return;
 				}
 
+				var $field = $self.parents('.js-multirecordfield-field').first();
+				var $fieldList = $field.find('.js-multirecordfield-list').first();
+
+				if (typeof $self.data('add-inline-num') === 'undefined')
+				{
+					// Scan over all 
+					var addInlineNum = 0;
+					$fieldList.children().each(function(e) {
+						var new_id = $(this).data('id');
+						if (new_id.substr(0, 4) === 'new_') {
+							var newIDInt = parseInt(new_id.substr(4), 10);
+							if (newIDInt > addInlineNum) {
+								addInlineNum = newIDInt;
+							}
+						}
+					});
+					addInlineNum += 1;
+					$self.data('add-inline-num', addInlineNum);
+				}
+
 				this.addinlinerecord(className, function(data) {
-					var num = $self.data('add-inline-num') || 1;
+					var num = $self.data('add-inline-num');
 					var depth = $self.data('depth');
 
 					var renderTree = getIDTree($self);
@@ -283,10 +296,7 @@
 						id: 'new_'+num,
 					});
 
-					// Find field container ('js-multirecordfield-field') and add HTML
-					// in the field list container.
-					var $field = $self.parents('.js-multirecordfield-field').first();
-					var $fieldList = $field.find('.js-multirecordfield-list').first();
+					// Add HTML to the field list container.
 					$fieldList.append(renderString(data, renderTree));
 					sortUpdate($fieldList);
 

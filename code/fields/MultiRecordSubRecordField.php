@@ -70,6 +70,21 @@ class MultiRecordSubRecordField extends CompositeField {
         return $this->record;
     }
 
+    public function getDataID() {
+        $record = ($this->getRecord());
+        if ($record && $record->ID) {
+            return $record->ID;
+        }
+        if ($record && $record->MultiRecordField_NewID) {
+            return $record->MultiRecordField_NewID;
+        }
+        $parent = $this->getParent();
+        if ($parent) {
+            return $parent->getFieldID(0);
+        }
+        throw new Exception('Unable to determine DataID');
+    }
+
     /**
      * @return string
      */
