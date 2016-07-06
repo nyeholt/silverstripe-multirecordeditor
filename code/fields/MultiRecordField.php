@@ -1027,6 +1027,25 @@ class MultiRecordField extends FormField {
         }
 
         $list = $this->list;
+
+        // Workaround for #5775 - Fix bug where ListboxField writes to $record, making
+        //                        UnsavedRelationList redundant.
+        // https://github.com/silverstripe/silverstripe-framework/pull/5775
+        $relationName = $this->getName();
+        $relation = ($record->hasMethod($relationName)) ? $record->$relationName() : null;
+        if ($relation) {
+            // If record has been saved but the list used on the field was an UnsavedRelationList
+            if ($record->ID && $list instanceof UnsavedRelationList) {
+                if ($relation instanceof ElementalArea) {
+                    // Hack to support Elemental
+                    $relation = $relation->Elements();
+                } else if ($relation instanceof DataObject) {
+                    throw new Exception('A FormField called DataObject::write() when it wasn\'t meant to on your unsaved record. https://github.com/silverstripe/silverstripe-framework/pull/5775');
+                }
+                $list = $relation;
+            }
+        }
+
         $flatList = array();
         if ($list instanceof DataList) 
         {
@@ -1038,7 +1057,7 @@ class MultiRecordField extends FormField {
         }
         else if (!$list instanceof UnsavedRelationList)
         {
-            throw new Exception('List class "'.$list->class.'" not supported by '.__CLASS__);
+            throw new Exception('Expected SS_List, but got "'.$list->class.'" in '.__CLASS__);
         }
 
         $sortFieldName = $this->getSortFieldName();
@@ -1076,8 +1095,6 @@ class MultiRecordField extends FormField {
                     // Find existing
                     $id = (int)$id;
                     if (!isset($flatList[$id])) {
-                        Versioned::reading_stage('Stage');
-                        Debug::dump(Versioned::current_stage()); exit;
                         throw new Exception('Record #'.$id.' on "'.$class.'" does not exist in this DataList context. (From ID string: '.$idString.')');
                     }
                     $subRecord = $flatList[$id];
