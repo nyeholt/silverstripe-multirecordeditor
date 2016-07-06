@@ -838,15 +838,13 @@ class MultiRecordField extends FormField {
             // Set value from record if it exists or if re-loading data after failed form validation
             if ($recordShouldSetValue)
             {
-                $val = null;
-                if (isset($record->$fieldName) 
+                if (isset($record->$fieldName)
                     || $record->hasMethod($fieldName)
                     || ($record->hasMethod('hasField') && $record->hasField($fieldName)))
                 {
                     $val = $record->__get($fieldName);
+                    $field->setValue($val, $record);
                 }
-                // NOTE(Jake): Some fields like 'CheckboxSetField' require the DataObject/record as the 2nd parameter
-                $field->setValue($val, $record);
             }
 
             if ($field instanceof MultiRecordField) {
