@@ -275,8 +275,10 @@
 					// Scan over all 
 					var addInlineNum = 0;
 					$fieldList.children().each(function(e) {
-						var new_id = $(this).data('id');
-						if (new_id.substr(0, 4) === 'new_') {
+						// jQuery Docs: To retrieve the value's attribute as a string 
+						//			    without any attempt to convert it, use the attr() method.
+						var new_id = $(this).attr('data-id');
+						if (new_id && new_id.substr(0, 4) === 'new_') {
 							var newIDInt = parseInt(new_id.substr(4), 10);
 							if (newIDInt > addInlineNum) {
 								addInlineNum = newIDInt;

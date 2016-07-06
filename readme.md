@@ -96,6 +96,11 @@ change the fields.
 
 [todo]
 
+# To-Do
+
+Unit Tests
+- Ensure all form data is restored correctly when a Form $Validator returns false
+
 ## Maintainers
 
 * Jake Bentvelzen (SilbinaryWolf) <jake@silverstripe.com.au>

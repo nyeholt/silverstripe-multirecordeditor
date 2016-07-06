@@ -25,7 +25,8 @@ div.multirecordfield-classname {
 	margin-left: 12px;
 }
 
-.multirecord_holder {
+.multirecord_holder,
+.ss-toggle .ui-accordion-content .multirecord_field {
 	padding-left: 0;
 }
 

@@ -62,6 +62,17 @@ class MultiRecordField extends FormField {
      */
     private static $default_button_classes = '';
 
+    /** 
+     * Enable workaround for ListboxField bug in 'framework' 3.3 and below.
+     * When disabled, an exception will be thrown if that bug is detected.
+     *
+     * https://github.com/silverstripe/silverstripe-framework/pull/5775
+     *
+     * @config
+     * @var boolean
+     */
+    private static $enable_patch_5775 = false;
+
     /**
      * Defaults to default_config if not set.
      *
@@ -502,7 +513,7 @@ class MultiRecordField extends FormField {
     public function setModelClass($modelClass) {
         if (is_array($modelClass))
         {
-            throw new Exception(__CLASS__.'::'.__FUNCTION__.': Only accepts singular value (not array).');
+            throw new Exception(__CLASS__.'::'.__FUNCTION__.': Only accepts singular value (not array). Use setModelClasses() instead.');
         }
         return $this->setModelClasses($modelClass);
     }
@@ -1039,13 +1050,17 @@ class MultiRecordField extends FormField {
         $relationName = $this->getName();
         $relation = ($record->hasMethod($relationName)) ? $record->$relationName() : null;
         if ($relation) {
-            // If record has been saved but the list used on the field was an UnsavedRelationList
+            // When ListboxField (or other) has saved a new record in its 'saveInto' function
             if ($record->ID && $list instanceof UnsavedRelationList) {
+                if ($this->config()->enable_patch_5775 === false)
+                {
+                    throw new Exception("ListboxField or another FormField called DataObject::write() when it wasn't meant to on your unsaved record. https://github.com/silverstripe/silverstripe-framework/pull/5775 ---- Enable 'enable_patch_5775' in your config YML against ".__CLASS__." to enable a workaround.");
+                }
                 if ($relation instanceof ElementalArea) {
                     // Hack to support Elemental
                     $relation = $relation->Elements();
                 } else if ($relation instanceof DataObject) {
-                    throw new Exception('A FormField called DataObject::write() when it wasn\'t meant to on your unsaved record. https://github.com/silverstripe/silverstripe-framework/pull/5775');
+                    throw new Exception("Unable to use enable_patch_5775 workaround as \"".$record->class."\"::\"".$relationName."\"() does not return a DataList.");
                 }
                 $list = $relation;
             }
@@ -1568,11 +1583,13 @@ class MultiRecordField extends FormField {
             }
 
             // Get existing records to add fields for
-            $recordList = null;
-            if ($this->list && !$this->list instanceof UnsavedRelationList) {
-                $recordList = new ArrayList($this->list->toArray());
-            } else {
-                $recordList = new ArrayList;
+            $recordArray = array();
+            if ($this->list && !$this->list instanceof UnsavedRelationList) 
+            {
+                foreach ($this->list->toArray() as $record)
+                {
+                    $recordArray[$record->ID] = $record;
+                }
             }
 
             //
@@ -1582,7 +1599,6 @@ class MultiRecordField extends FormField {
             $value = $this->Value();
             if ($value && is_array($value))
             {
-                // todo(Jake): Could be a potential vector for attack. Look into this.
                 foreach ($value as $class => $recordDatas) 
                 {
                     foreach ($recordDatas as $new_id => $fieldData) 
@@ -1591,61 +1607,46 @@ class MultiRecordField extends FormField {
                         {
                             $record = $class::create();
                             $record->MultiRecordField_NewID = $new_id;
-                            foreach ($fieldData as $fieldName => $fieldInfo) 
-                            {
-                                if (is_array($fieldInfo)) {
-                                    $record->$fieldName = $fieldInfo;
-                                } else {
-                                    $record->$fieldName = $fieldInfo->value;
-                                }
-                            }
-                            $recordList->push($record);
-                            /*$recordFields = $this->getRecordDataFields($record);
-                            $recordDataFields = $recordFields->dataFields();
-                            Debug::dump(array_keys($recordDataFields)); exit;
-                            foreach ($fieldData as $fieldName => $fieldInfo) 
-                            {
-                                if (isset($recordDataFields[$fieldName]))
-                                {
-                                    $field = $recordDataFields[$fieldName];
-                                    if ($field instanceof MultiRecordField) {
-                                        $field->setValue($fieldInfo);
-                                    } else {
-                                        $field->setValue($fieldInfo->value);
-                                    }
-                                }
-                            }
-                            foreach ($recordFields as $field) {
-                                if ($field instanceof MultiRecordSubRecordField) {
-                                    $field->setRecord($record);
-                                }
-                            }
-                            $this->applyUniqueFieldNames($recordFields, $record);
-                            foreach ($recordFields as $field)
-                            {
-                                $this->children->push($field);
-                            }*/
+                            $recordArray[$new_id] = $record;
                         }
                         else if ($new_id == (string)(int)$new_id)
                         {
                             // NOTE(Jake): "o-multirecordediting-1-id" == 0 // evaluates true in PHP 5.5.12, 
                             //             So we need to make it a string again to avoid that dumb case.
                             $new_id = (int)$new_id;
-                            throw new Exception('todo, handle existing stuff that fails validation. ('.$new_id.')');
+                            if (!isset($recordArray[$new_id]))
+                            {
+                                throw new Exception('Record #'.$new_id.' does not exist in this context.');
+                            }
+                            $record = $recordArray[$new_id];
+                            //throw new Exception('todo, handle existing stuff that fails validation. ('.$new_id.')');
                         }
                         else
                         {
                             throw new Exception('Validation failed and unable to restore fields with invalid ID. ('.$new_id.')');
                         }
+
+                        // Update new/existing record with data
+                        foreach ($fieldData as $fieldName => $fieldInfo) 
+                        {
+                            if (is_array($fieldInfo)) {
+                                $record->$fieldName = $fieldInfo;
+                            } else {
+                                $record->$fieldName = $fieldInfo->value;
+                            }
+                        }
                     }
                 }
+            }
 
-                // Ensure all the records are sorted properly
-                $sortFieldName = $this->getSortFieldName();
-                if ($sortFieldName)
-                {
-                    $recordList = $recordList->sort($sortFieldName);
-                }
+            // Transform into list
+            $recordList = new ArrayList($recordArray);
+
+            // Ensure all the records are sorted by the sort field
+            $sortFieldName = $this->getSortFieldName();
+            if ($sortFieldName)
+            {
+                $recordList = $recordList->sort($sortFieldName);
             }
 
             //
