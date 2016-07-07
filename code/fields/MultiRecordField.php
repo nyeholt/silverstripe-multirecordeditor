@@ -769,6 +769,8 @@ class MultiRecordField extends FormField {
 
         // 
         $recordExists = $record->exists();
+
+        // Set value from record if it exists or if re-loading data after failed form validation
         $recordShouldSetValue = ($recordExists || $record->MultiRecordField_NewID);
 
         // Setup sort field
@@ -789,6 +791,7 @@ class MultiRecordField extends FormField {
                 } else {
                     $sortField->setValue($sortValue);
                 }
+                $sortField->setAttribute('data-ignore-delete-check', 1);
                 // NOTE(Jake): Uses array_merge() to prepend the sort field in the $fields associative array.
                 //             The sort field is prepended so jQuery.find('.js-multirecordfield-sort-field').first()
                 //             finds the related sort field to this, rather than a sort field nested deeply in other
@@ -828,6 +831,9 @@ class MultiRecordField extends FormField {
         $subRecordField = MultiRecordSubRecordField::create('', $recordSectionTitle, null);
         $subRecordField->setParent($this);
         $subRecordField->setRecord($record);
+        if ($this->readonly) {
+            $subRecordField = $subRecordField->performReadonlyTransformation();
+        }
 
         // Modify sub-fields to work properly with this field
         $currentFieldListModifying = $subRecordField;
@@ -835,7 +841,6 @@ class MultiRecordField extends FormField {
         {
             $fieldName = $field->getName();
 
-            // Set value from record if it exists or if re-loading data after failed form validation
             if ($recordShouldSetValue)
             {
                 if (isset($record->$fieldName)

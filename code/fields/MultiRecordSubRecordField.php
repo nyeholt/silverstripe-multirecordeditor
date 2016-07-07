@@ -229,4 +229,11 @@ class MultiRecordSubRecordField extends CompositeField {
 
 class MultiRecordSubRecordField_Readonly extends MultiRecordSubRecordField {
     protected $readonly = true;
+
+    /**
+     * @return FieldList
+     */
+    public function Actions() {
+        return new FieldList();
+    }
 }

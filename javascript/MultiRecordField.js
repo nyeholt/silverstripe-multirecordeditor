@@ -124,6 +124,7 @@
 
 				this.parent().sortable({
 					handle: '.js-multirecordfield-sort-handle',
+					axis: 'y',
 					helper: helper,
 					opacity: 0.7,
 					start: start,
@@ -163,8 +164,6 @@
 				this.change();
 			},
 			onchange: function(e) {
-				this._super();
-
 				var self = this[0],
 					$self = $(self);
 
@@ -192,6 +191,8 @@
 						}
 					}
 				}
+
+				this._super();
 			}
 		});
 
@@ -208,15 +209,48 @@
 					return;
 				}
 
-				var id = $thisItem.data('id').toString();
+				// 
+				var allInputValuesAreEmpty = false;
+				var new_id = $thisItem.attr('data-id');
+				if (new_id && new_id.substr(0, 4) === 'new_') 
+				{
+					// Only allow permanently deletion on new records
+					allInputValuesAreEmpty = true;
+					var $inputs = $thisItem.find('input, select, textarea');
+					for (var i = 0; i < $inputs.length; ++i) {
+						var $it = $($inputs[i]);
+						var type = $it.attr('type');
+						if (!$it.data('ignore-delete-check') && type !== 'submit' && type !== 'button')
+						{
+							var val = $.trim($it.val());
+							if (val) {
+								allInputValuesAreEmpty = false;
+								break;
+							}
+						}
+					}
+				}
+
+				// 
 				var $field = $self.parents('.js-multirecordfield-field').first();
-				// NOTE(Jake): Finds the .first() because otherwise it could set all unrelated
-				//			   sort fields in nested MultiRecordEditingField's.
 				var $deletedList = $field.find('.js-multirecordfield-deleted-list').first();
 				var name = $thisItem.data('name')+'__multirecordfield_delete';
-				var $el = $('<input type="hidden" name="'+name+'" value="1" />').appendTo($deletedList);
-				$thisItem.data('delete-input', $el);
-				$thisItem.addClass('is-deleted');
+				var $el = $('<input type="hidden" name="'+name+'" value="1" data-ignore-delete-check="1" />').appendTo($deletedList);
+				if (allInputValuesAreEmpty)
+				{
+					// Delete permanently
+					$thisItem.remove();
+
+					// Update sort values
+					var $fieldList = $field.find('.js-multirecordfield-list').first();
+					sortUpdate($fieldList);
+				}
+				else
+				{
+					// Make the content be restorable if the inputs have values
+					$thisItem.data('delete-input', $el);
+					$thisItem.addClass('is-deleted');
+				}
 			}
 		});
 
