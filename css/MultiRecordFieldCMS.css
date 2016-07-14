@@ -1,0 +1,60 @@
+/* CMS-Specific Styling */
+div.multirecord > div.middleColumn {
+	margin-left: 0;
+}
+
+div.multirecordfield-classname {
+	/* Remove CMS style */
+	margin: 0;
+	border-bottom: 0;
+	box-shadow: none;
+}
+
+.multirecordfield-classname .middleColumn {
+	/* Remove CMS style */
+	margin-left: 0;
+}
+
+.multirecordfield-actions .chzn-container {
+	/* Vertically center chosen <select> to align with InlineAddButton */
+	margin-top: -2px;
+}
+
+.multirecordfield-undo-button,
+.multirecordfield-delete-button {
+	margin-left: 12px;
+}
+
+.multirecord_holder,
+.ss-toggle .ui-accordion-content .multirecord_field {
+	padding-left: 0;
+}
+
+.field.multirecord_holder label.left {
+	float: none;
+	padding-bottom: 0;
+}
+
+.field.multirecord_field .mceEditor + .mceEditor {
+	/* Hack to stop HTMLEditorField double up bug in SS 3.2 */
+	display: none !important;
+}
+
+/* Skin */
+.cms .ui-button.multirecordfield-delete-button {
+	color: #fff;
+	text-shadow:none;
+	border: solid 1px #980c10;
+	background: #d81b21;
+	background: -webkit-gradient(linear, left top, left bottom, from(#ed1c24), to(#aa1317));
+	background: -moz-linear-gradient(top,  #ed1c24,  #aa1317);
+	filter:  progid:DXImageTransform.Microsoft.gradient(startColorstr='#ed1c24', endColorstr='#aa1317');
+}
+
+.cms .ui-button.multirecordfield-delete-button:hover,
+.cms .ui-button.multirecordfield-delete-button:active {
+	background: #b61318;
+	background: -webkit-gradient(linear, left top, left bottom, from(#c9151b), to(#a11115));
+	background: -moz-linear-gradient(top,  #c9151b,  #a11115);
+	filter:  progid:DXImageTransform.Microsoft.gradient(startColorstr='#c9151b', endColorstr='#a11115');
+}

@@ -1,0 +1,83 @@
+/* Actions */
+.multirecordfield-actions {
+	text-align: left;
+}
+
+.multirecordfield-actions > * {
+	display: inline-block;
+	vertical-align: top;
+}
+
+/* Hide Label */
+.multirecordfield-classname label {
+	/* .visuallyhidden */
+	border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px;
+}
+
+/* Undo Button */
+.multirecordfield-subrecordfield .multirecordfield-undo-button,
+.multirecordfield-subrecordfield.is-deleted .field,
+.multirecordfield-subrecordfield.is-deleted .multirecordfield-delete-button {
+	display: none;
+}
+
+.multirecordfield-subrecordfield.is-deleted .multirecordfield-undo-button {
+	display: block;
+}
+
+/* Loading */
+.multirecordfield-loading {
+	position: relative;
+	left: 4px;
+	top: 5px;
+	z-index: 0;
+	width: 16px;
+	height: 16px;
+	background: transparent url(../../../framework/images/network-save.gif) no-repeat 0 0;
+	visibility: hidden;
+}
+
+.multirecordfield-loading.is-loading {
+	visibility: visible;
+}
+
+/* SubRecordField*/
+.multirecordfield-subrecordfield {
+	position: relative;
+	z-index: 0;
+}
+
+.multirecordfield-subrecordfield_sort {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	margin-top: -15px;
+	z-index: 0;
+}
+
+.multirecordfield-subrecordfield_fields {
+	padding-left: 25px;
+}
+
+.multirecordfield-subrecordfield_sort_handle {
+	position: relative;
+	left: -3px;
+	z-index: 0;
+	width: 25px;
+	height: 30px;
+	display: inline-block;
+	cursor: move;
+}
+
+.multirecordfield-subrecordfield_sort_handle_icon {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	display: inline-block;
+	width: 5px;
+	height: 11px;
+	margin: -5px 0 0 -2px;
+	font-size: 0;
+	background-image: url('../../framework/thirdparty/jquery-ui-themes/smoothness/images/ui-icons_222222_256x240.png');
+	background-position: -5px -227px;
+}
