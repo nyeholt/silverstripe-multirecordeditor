@@ -1,9 +1,21 @@
 <?php
 
+namespace Symbiote\MultiRecord;
+
+use SilverStripe\Forms\FieldList;
+use SilverStripe\ORM\DataObjectInterface;
+use SilverStripe\Forms\ToggleCompositeField;
+use SilverStripe\Forms\HeaderField;
+use SilverStripe\Forms\HTMLEditor\HTMLEditorField;
+use SilverStripe\Forms\FormField;
+use SilverStripe\ORM\ArrayList;
+use SilverStripe\Forms\CompositeField;
+
+
 /**
  * @author marcus
  */
-class MultiRecordEditingField extends FormField
+class MultiRecordEditingField extends CompositeField
 {
     /**
      *
@@ -19,11 +31,18 @@ class MultiRecordEditingField extends FormField
     protected $htmlEditorHeight = 6;
 
     /**
-     * Should we use toggle Composites in layout ? 
+     * Should we use toggle Composites in layout ?
      *
      * @var boolean
      */
     protected $useToggles = true;
+
+    /**
+     * Should we be configured for frontend or CMS based editing?
+     *
+     * @var boolean
+     */
+    protected $forFrontendUse = false;
 
     /**
      * @var FieldList
@@ -31,9 +50,14 @@ class MultiRecordEditingField extends FormField
     protected $children;
     protected $tabs;
 
-    public function __construct($name, $title = null, $recordList = null)
+    public function __construct($name, $title = null, $recordList = null, $forFrontendUse = false)
     {
-        parent::__construct($name, $title);
+        parent::__construct();
+
+        $this->setName($name);
+        $this->setTitle($title);
+
+        $this->forFrontendUse = $forFrontendUse;
 
         $this->children = FieldList::create();
 
@@ -51,24 +75,17 @@ class MultiRecordEditingField extends FormField
     {
         return true; // parent::isComposite();
     }
-	
-	public function replaceField($fieldName, $newField) {
-		// noop for a mr editing field... for now
-	}
 
-    public function collateDataFields(&$list, $saveableOnly = false)
+    public function replaceField($fieldName, $newField)
     {
-        foreach ($this->children as $field) {
-            if ($field->isComposite()) {
-                $field->collateDataFields($list, $saveableOnly);
-            }
-
-            $isIncluded = $field->hasData() && !$saveableOnly;
-            if ($isIncluded) {
-                $list[$field->getName()] = $field;
-            }
-        }
+		// noop for a mr editing field... for now
     }
+
+    public function hasData()
+    {
+        return true;
+    }
+
 
     public function removeByName($fieldName, $dataFieldOnly = false)
     {
@@ -79,7 +96,7 @@ class MultiRecordEditingField extends FormField
      * Set a height for html editor fields
      *
      * @param int $value
-     * @return \MultiRecordEditingField
+     * @return MultiRecordEditingField
      */
     public function setHtmlEditorHeight($value)
     {
@@ -95,7 +112,7 @@ class MultiRecordEditingField extends FormField
 
     /**
      * Retrieves the list of records that have been edited and return to the user
-     * 
+     *
      * @return ArrayList
      */
     public function getRecords()
@@ -135,14 +152,16 @@ class MultiRecordEditingField extends FormField
             // add its records to 'me'
             $this->addMultiEditor($editor, $record, true);
             return;
-        } elseif (method_exists($record, 'multiEditFields')) {
+        } else if (method_exists($record, 'multiEditFields')) {
             $fields = $record->multiEditFields();
+        } else if ($this->forFrontendUse && method_exists($record, 'getFrontEndFields')) {
+            $fields = $record->getFrontEndFields();
         } else {
             $fields = $record->getCMSFields();
         }
         /* @var $fields FieldList */
 
-        $record->extend('updateMultiEditFields', $fields);
+        $record->extend('updateMultiEditFields', $fields, $this->forFrontendUse);
         // we just want the data fields, not wrappers
         $fields = $fields->dataFields();
         if (!count($fields)) {
@@ -151,10 +170,10 @@ class MultiRecordEditingField extends FormField
 
         $status = $record->CMSPublishedState;
         if ($status) {
-            $status = ' ('.$status.')';
+            $status = ' (' . $status . ')';
         }
 
-        $tab = ToggleCompositeField::create('CompositeHeader'.$record->ID, $record->Title.$status, null);
+        $tab = ToggleCompositeField::create('CompositeHeader' . $record->ID, $record->Title . $status, null);
         if ($parentFields) {
             $parentFields->push($tab);
         } else {
@@ -164,7 +183,7 @@ class MultiRecordEditingField extends FormField
 
         // if we're not using toggles, we only add the header _if_ we're an inner item, ie $parentFields != null
         if ($parentFields) {
-            $this->children->push(HeaderField::create('RecordHeader'.$record->ID, $record->Title.$status));
+            $this->children->push(HeaderField::create('RecordHeader' . $record->ID, $record->Title . $status));
         }
 
         foreach ($fields as $field) {
@@ -180,11 +199,8 @@ class MultiRecordEditingField extends FormField
                 continue;
             }
 
-            $exists = (
-                isset($record->$original) ||
-                $record->hasMethod($original) ||
-                ($record->hasMethod('hasField') && $record->hasField($original))
-                );
+            $exists = (isset($record->$original) ||
+                $record->hasMethod($original) || ($record->hasMethod('hasField') && $record->hasField($original)));
 
             $val = null;
             if ($exists) {
@@ -194,7 +210,7 @@ class MultiRecordEditingField extends FormField
             $field->setValue($val, $record);
 
             // tweak HTMLEditorFields so they're not huge
-            if ($this->htmlEditorHeight && $field instanceof HtmlEditorField) {
+            if ($this->htmlEditorHeight && $field instanceof HTMLEditorField) {
                 $field->setRows($this->htmlEditorHeight);
             }
 
@@ -219,7 +235,7 @@ class MultiRecordEditingField extends FormField
     protected function addMultiEditor($editor, $fromRecord, $addHeader = false, $tab = null)
     {
         if ($addHeader) {
-            $this->children->push(HeaderField::create('RecordHeader'.$fromRecord->ID, $fromRecord->Title));
+            $this->children->push(HeaderField::create('RecordHeader' . $fromRecord->ID, $fromRecord->Title));
         }
 
         foreach ($editor->getRecords() as $r) {
@@ -232,14 +248,16 @@ class MultiRecordEditingField extends FormField
         $name = $field instanceof FormField ? $field->getName() : $field;
 
         return sprintf(
-            '%s__%s__%s__%s', $this->getName(), $record->ClassName, $record->ID, $name
+            '%s__%s__%s__%s',
+            $this->name,
+            $record->ClassName,
+            $record->ID,
+            $name
         );
     }
 
-    public function saveInto(\DataObjectInterface $record)
+    public function saveInto(DataObjectInterface $record)
     {
-        $v = $this->Value();
-
         $allItems = array();
         foreach ($this->children as $field) {
             $fieldname = $field->getName();
@@ -248,14 +266,19 @@ class MultiRecordEditingField extends FormField
                 if (count($bits) > 3) {
                     list($dataFieldName, $id, $classname) = $bits;
                     if (!isset($allItems["$classname-$id"])) {
-                        $item                       = $this->records->filter(array('ClassName' => $classname, 'ID' => $id))->first();
+                        $item = $this->records->filter(array('ClassName' => $classname, 'ID' => $id))->first();
                         $allItems["$classname-$id"] = $item;
                     }
                     $item = $allItems["$classname-$id"];
                     if ($item) {
+                        // we need to clone the field, otherwise the field object
+                        // itself gets modified. The field object itself exists
+                        // in a cached list elsewhere, and changing the name here
+                        // would otherwise break things
                         if ($field) {
-                            $field->setName($dataFieldName);
-                            $field->saveInto($item);
+                            $cloned = clone $field;
+                            $cloned->setName($dataFieldName);
+                            $cloned->saveInto($item);
                         }
                     }
                 }

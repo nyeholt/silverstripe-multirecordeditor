@@ -1,12 +1,13 @@
 # Multi Record Editing field
 
-A field for editing multiple fields in a single editing interface. 
+A field for editing multiple fields in a single editing interface.
 
 ## Requirements
 
- * SilverStripe ^3.2
- 
+ * SilverStripe ^4.1
+
 ## Installation
+
 
 
 ## License
@@ -14,30 +15,29 @@ See [License](license.md)
 
 ## Problem being solved
 
-In some sites, it is desirable to remove some complexity from the editing 
+In some sites, it is desirable to remove some complexity from the editing
 process around managing objects related to pages, and only allow editing of
-those objects instead of full control over adding and removing them. 
+those objects instead of full control over adding and removing them.
 
-By making a gridfield available for power users to add, re-order and remove 
-objects, and then presenting just the editable fields for the objects to 
-content, both usage models can be catered for. 
+By making a gridfield available for power users to add, re-order and remove
+objects, and then presenting just the editable fields for the objects to
+content, both usage models can be catered for.
 
 
 ## Documentation
- 
+
 ```
-private static $has_many = array('Cells', 'BasicContent');
+private static $has_many = array('Elements' => 'BaseElement');
 
-$editor = MultiRecordEditingField::create('ContentCellEditor', 'Content Cells', $this->Cells());
-$fields->addFieldToTab('Root.ContentCells', $editor);
+$editor = MultiRecordEditingField::create('Elements', 'Content Cells', $this->Elements());
+$fields->addFieldToTab('Root.Elements', $editor);
 ```
 
-
-## Example configuration (optional)
+**Example**
 
 ```php
 class Page extends SiteTree {
-	
+
 	private static $has_many = array(
         'Cells'      => 'BasicContent',
     );
@@ -107,20 +107,30 @@ Alternatively, the top level items may be inserted on separate tabs
 
 **Multi-edit-ception?**
 
-The `MultiRecordEditingField` supports nesting of other 
-`MultiRecordEditingField`s. When the field detects a `MultiRecordEditingField` 
-in the set of fields to edit, that field is added as another nested toggle 
-field inside the parent set of fields for editing. 
+The `MultiRecordEditingField` supports nesting of other
+`MultiRecordEditingField`s. When the field detects a `MultiRecordEditingField`
+in the set of fields to edit, that field is added as another nested toggle
+field inside the parent set of fields for editing.
 
 **Custom fields**
 
 The `MultiRecordEditingField` uses the output of `getCMSFields` when building
 the fieldlist used for editing. To provide an alternate set of fields, define
-a `multiEditFields` method that returns a `FieldList` object. 
+a `multiEditFields` method that returns a `FieldList` object.
 
-Additionally, the `MultiRecordEditingField` calls the `updateMultiEditFields` 
+Additionally, the `MultiRecordEditingField` calls the `updateMultiEditFields`
 extension hook on the _record_ being edited to allow extensions a chance to
-change the fields. 
+change the fields.
+
+**Frontend usage**
+
+Pass in a boolean flag during construction
+
+```
+MultiRecordEditingField::create('ContentCellEditor', 'Content Cells', $this->Cells(), $frontend = true);
+```
+
+This will trigger the lookup of fields using `getFrontEndFields()` instead of getCMSFields().
 
 ## Screenshots
 
@@ -129,7 +139,7 @@ for editing.
 
 ![Admin view](screenshots/multi-edit.png)
 
-While content authors are provided an in-page view for editing items. 
+While content authors are provided an in-page view for editing items.
 
 ![Expanded editing view](screenshots/multi-edit-expanded.png)
 
@@ -140,5 +150,5 @@ Or set on different tabs.
 ## Maintainers
 
 * Marcus Nyeholt <marcus@silverstripe.com.au>
- 
+
 ## Bugtracker
