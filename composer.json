@@ -1,12 +1,12 @@
 {
 	"name": "nyeholt/silverstripe-multirecordeditor",
-	"type": "silverstripe-module",
+	"type": "silverstripe-vendormodule",
 	"description": "A module for editing multiple records in a single interface.",
 	"keywords": ["silverstripe", "record editing"],
 	"license": "BSD-3-Clause",
 	"extra": {
 		"branch-alias": {
-			"dev-master": "1.0.x-dev"
+			"dev-master": "2.0.x-dev"
 		},
 		"installer-name": "multirecordeditor"
 	},
