@@ -258,8 +258,6 @@ class MultiRecordEditingField extends CompositeField
 
     public function saveInto(DataObjectInterface $record)
     {
-        $v = $this->Value();
-
         $allItems = array();
         foreach ($this->children as $field) {
             $fieldname = $field->getName();
@@ -273,9 +271,14 @@ class MultiRecordEditingField extends CompositeField
                     }
                     $item = $allItems["$classname-$id"];
                     if ($item) {
+                        // we need to clone the field, otherwise the field object
+                        // itself gets modified. The field object itself exists
+                        // in a cached list elsewhere, and changing the name here
+                        // would otherwise break things
                         if ($field) {
-                            $field->setName($dataFieldName);
-                            $field->saveInto($item);
+                            $cloned = clone $field;
+                            $cloned->setName($dataFieldName);
+                            $cloned->saveInto($item);
                         }
                     }
                 }
