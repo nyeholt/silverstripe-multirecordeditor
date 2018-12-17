@@ -3,7 +3,13 @@
 	"type": "silverstripe-vendormodule",
 	"description": "A module for editing multiple records in a single interface.",
 	"keywords": ["silverstripe", "record editing"],
-	"license": "BSD-3-Clause",
+    "license": "BSD-3-Clause",
+    "autoload": {
+        "psr-4": {
+            "Symbiote\\MultiRecord\\": "src/",
+            "Symbiote\\MultiRecord\\Tests\\": "tests/"
+        }
+    },
 	"extra": {
 		"branch-alias": {
 			"dev-master": "2.0.x-dev"
