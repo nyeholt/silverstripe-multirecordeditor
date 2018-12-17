@@ -42,7 +42,7 @@ class MultiRecordEditingField extends CompositeField
      *
      * @var boolean
      */
-    protected $useFrontend = true;
+    protected $forFrontendUse = false;
 
     /**
      * @var FieldList
@@ -50,14 +50,14 @@ class MultiRecordEditingField extends CompositeField
     protected $children;
     protected $tabs;
 
-    public function __construct($name, $title = null, $recordList = null, $useFrontend = true)
+    public function __construct($name, $title = null, $recordList = null, $forFrontendUse = false)
     {
         parent::__construct();
 
         $this->setName($name);
         $this->setTitle($title);
 
-        $this->useFrontend = $useFrontend;
+        $this->forFrontendUse = $forFrontendUse;
 
         $this->children = FieldList::create();
 
@@ -154,14 +154,14 @@ class MultiRecordEditingField extends CompositeField
             return;
         } else if (method_exists($record, 'multiEditFields')) {
             $fields = $record->multiEditFields();
-        } else if ($this->useFrontend && method_exists($record, 'getFrontEndFields')) {
+        } else if ($this->forFrontendUse && method_exists($record, 'getFrontEndFields')) {
             $fields = $record->getFrontEndFields();
         } else {
             $fields = $record->getCMSFields();
         }
         /* @var $fields FieldList */
 
-        $record->extend('updateMultiEditFields', $fields, $this->useFrontend);
+        $record->extend('updateMultiEditFields', $fields, $this->forFrontendUse);
         // we just want the data fields, not wrappers
         $fields = $fields->dataFields();
         if (!count($fields)) {
