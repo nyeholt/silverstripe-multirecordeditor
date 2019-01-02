@@ -250,7 +250,7 @@ class MultiRecordEditingField extends CompositeField
         return sprintf(
             '%s__%s__%s__%s',
             $this->name,
-            $record->ClassName,
+            str_replace("\\", "-", $record->ClassName),
             $record->ID,
             $name
         );
@@ -265,6 +265,8 @@ class MultiRecordEditingField extends CompositeField
                 $bits = array_reverse(explode('__', $fieldname));
                 if (count($bits) > 3) {
                     list($dataFieldName, $id, $classname) = $bits;
+                    $classname = str_replace('-', "\\", $classname);
+
                     if (!isset($allItems["$classname-$id"])) {
                         $item = $this->records->filter(array('ClassName' => $classname, 'ID' => $id))->first();
                         $allItems["$classname-$id"] = $item;
