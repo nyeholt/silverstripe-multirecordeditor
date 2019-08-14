@@ -76,7 +76,7 @@ class MultiRecordEditingField extends CompositeField
         return true; // parent::isComposite();
     }
 
-    public function replaceField($fieldName, $newField)
+    public function replaceField($fieldName, $newField, $dataFieldOnly = true)
     {
 		// noop for a mr editing field... for now
     }
